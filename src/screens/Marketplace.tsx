@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useInfiniteQuery } from '@tanstack/react-query';
 import { API } from '@/lib/api';
 import type { Listing } from '@/types';
 import { isProduceInSeason } from '@/lib/seasonalProduce';
@@ -56,13 +56,16 @@ export default function Marketplace() {
   const activeId = communitiesQuery.data?.activeCommunityId ?? communities[0]?.id ?? null;
   const community = communities.find((c) => c.id === activeId) ?? communities[0] ?? null;
 
-  const listingsQuery = useQuery({
+  const listingsQuery = useInfiniteQuery({
     queryKey: ['listings', filter, activeId, community?.zipCode],
-    queryFn: () => {
-      if (filter === 'global') return API.getListings({}); // every community
-      if (filter === 'community' && activeId) return API.getListings({ communityId: activeId });
-      return API.getListings({ zipCode: community?.zipCode });
+    initialPageParam: undefined as string | undefined,
+    queryFn: ({ pageParam }) => {
+      const base = { cursor: pageParam } as { communityId?: string; zipCode?: string; cursor?: string };
+      if (filter === 'global') return API.getListings(base); // every community
+      if (filter === 'community' && activeId) return API.getListings({ ...base, communityId: activeId });
+      return API.getListings({ ...base, zipCode: community?.zipCode });
     },
+    getNextPageParam: (lastPage) => lastPage.nextCursor ?? undefined,
     enabled: filter === 'global' || !!community,
   });
 
