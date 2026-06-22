@@ -4,7 +4,7 @@ A mobile-first marketplace where neighbors in a local community list, trade, and
 give away homegrown produce. Members post crop listings, make offers, message
 each other, and rate completed trades.
 
-This is a rebuild of the original `shareCropsApp`. It talks to the **same**
+This is a rebuild of the original `shareCropsApp` at https://github.com/gilbertanderson/share-crops-app. It talks to the **same**
 deployed Supabase backend out of the box, so it runs against live data with no
 backend setup required.
 
