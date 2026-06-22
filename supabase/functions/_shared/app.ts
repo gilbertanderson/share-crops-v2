@@ -6,6 +6,7 @@ import { logger } from "hono/logger";
 import * as kv from "./kv_store.ts";
 import * as security from "./security.ts";
 import { createClient } from "@supabase/supabase-js";
+import Anthropic from "@anthropic-ai/sdk";
 import { getEnv } from "./env.ts";
 
 const ADMIN_EMAIL = (() => {
@@ -50,8 +51,20 @@ const CORS_ORIGINS = (() => {
   if (!origins || origins.trim() === '') {
     throw new Error('CORS_ORIGINS environment variable must be configured as comma-separated values.');
   }
-  return origins.split(',').map(o => o.trim());
+  return origins.split(',').map(o => o.trim()).filter(Boolean);
 })();
+
+// Allow an origin if it's explicitly configured (CORS_ORIGINS), OR it's
+// localhost on any port (local dev), OR it's a share-crops-v2 Vercel deployment
+// (the production alias, the auto-generated project domain, or a preview URL).
+// Returning the origin string tells Hono to echo it in Access-Control-Allow-Origin.
+const isAllowedOrigin = (origin: string | undefined | null): string | null => {
+  if (!origin) return null;
+  if (CORS_ORIGINS.includes(origin)) return origin;
+  if (/^http:\/\/localhost(:\d+)?$/.test(origin)) return origin;
+  if (/^https:\/\/share-crops-v2[a-z0-9-]*\.vercel\.app$/.test(origin)) return origin;
+  return null;
+};
 
 const DEFAULT_ORIGIN = (() => {
   const origin = getEnv('DEFAULT_ORIGIN');
@@ -69,7 +82,7 @@ app.use('*', logger(console.log));
 app.use(
   "/*",
   cors({
-    origin: CORS_ORIGINS,
+    origin: (origin) => isAllowedOrigin(origin),
     allowHeaders: ["Content-Type", "Authorization", "X-CSRF-Token"],
     allowMethods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     exposeHeaders: ["Content-Length", "X-RateLimit-Remaining", "X-RateLimit-Reset"],
@@ -2249,6 +2262,124 @@ app.post("/make-server-dd877831/upload", async (c) => {
   } catch (error) {
     console.error("Upload error:", error);
     return c.json({ error: "Upload failed" }, 500);
+  }
+});
+
+// ── AI listing-description assistant (Claude, with prompt caching) ──────────
+//
+// The system prompt below is large and *stable* — the same bytes on every
+// request — so it's the ideal cached prefix. We mark its last (only) block with
+// cache_control: {type: "ephemeral"}; the volatile per-request input (the user's
+// title/notes) goes in the messages array, after the breakpoint, so it never
+// invalidates the cache. Render order is tools → system → messages, so the
+// breakpoint on the system block caches the whole prefix.
+//
+// Caching is a prefix match with a model-dependent minimum: on claude-opus-4-8
+// the prefix must exceed ~4096 tokens before anything is written to cache
+// (shorter prefixes silently don't cache — usage.cache_creation_input_tokens
+// stays 0). The guide below is intentionally substantial so repeat calls within
+// the 5-minute TTL read from cache (~0.1x input cost) instead of reprocessing.
+const LISTING_ASSISTANT_SYSTEM = `You are the listing assistant for Share Crops, a neighborhood produce-bartering community where people trade homegrown fruit, vegetables, eggs, honey, flowers, and baked goods — no money changes hands.
+
+Your job: turn a grower's rough title and optional notes into ONE warm, concrete listing description that helps a neighbor decide whether to make an offer.
+
+OUTPUT CONTRACT
+- Return only the description text. No preamble ("Here is…"), no headings, no markdown, no quotation marks, no sign-off.
+- 1 to 3 sentences, 200 characters or fewer.
+- Plain, friendly, first-person voice ("Picked this morning…", "Happy to trade for…").
+- Never invent specifics the grower didn't imply: do not fabricate weight, price, pesticide claims, certifications, or pickup logistics.
+- No prices or money — this is a barter community.
+- If the input is empty or nonsensical, return a single short neutral sentence inviting an offer.
+
+STYLE GUIDE
+- Lead with what makes the item appealing: freshness, flavor, variety, abundance ("garden is overflowing").
+- Be specific where the grower gave you something to work with (variety name, how it was grown, when it was picked).
+- Prefer sensory, concrete words ("sweet, low-acid", "snappy", "still warm") over vague praise ("amazing", "the best").
+- It's fine to mention a trade interest if the notes suggest one ("would love herbs in return").
+- Keep it honest and modest — neighbors value trustworthiness over hype.
+
+SEASONAL REFERENCE (use only to inform tone/季 phrasing; do not assert a season the grower didn't):
+- Spring: asparagus, peas, radishes, lettuces, strawberries, rhubarb, green garlic, chives, spring onions.
+- Summer: tomatoes (heirloom, cherry, paste), zucchini & summer squash, cucumbers, peppers (sweet & chili), green beans, corn, basil, eggplant, melons, blackberries, raspberries, peaches, plums, figs.
+- Autumn: winter squash (butternut, delicata, kabocha), pumpkins, apples, pears, grapes, kale, chard, beets, carrots, leeks, cabbage, fennel.
+- Winter: citrus (Meyer lemons, mandarins), persimmons, pomegranates, hardy greens, storage potatoes & onions, dried beans, preserves.
+- Year-round (anytime): eggs, raw honey, herbs, microgreens, sourdough & baked goods, cut flowers, seedlings & starts.
+
+EXAMPLES
+Title: "Heirloom tomatoes" / Notes: "picked today, want basil"
+→ Heirloom tomatoes picked this morning — sweet and low-acid, perfect for slicing. Would happily trade for a bunch of fresh basil.
+
+Title: "Too many zucchini" / Notes: ""
+→ The garden is overflowing with zucchini — crisp, tender, and cut to order. Take some off my hands!
+
+Title: "eggs" / Notes: "mixed, blue and brown"
+→ A dozen mixed brown and blue eggs from our backyard hens, gathered this week.`;
+
+let _anthropic: Anthropic | null = null;
+const getAnthropic = (): Anthropic | null => {
+  const apiKey = getEnv("ANTHROPIC_API_KEY");
+  if (!apiKey) return null;
+  if (!_anthropic) _anthropic = new Anthropic({ apiKey });
+  return _anthropic;
+};
+
+app.post("/make-server-dd877831/listings/draft-description", async (c) => {
+  const user = await getAuthUser(c.req.header("Authorization"));
+  if (!user) return c.json({ error: "Unauthorized" }, 401);
+
+  const anthropic = getAnthropic();
+  if (!anthropic) {
+    return c.json({ error: "AI assistant is not configured" }, 503);
+  }
+
+  try {
+    const { title, notes } = await c.req.json();
+
+    const titleValidation = security.validateInput(title, "string", { minLength: 1, maxLength: 200 });
+    if (!titleValidation.valid) {
+      return c.json({ error: "Title must be 1-200 characters" }, 400);
+    }
+    const notesValidation = security.validateInput(notes || "", "string", { maxLength: 500 });
+    if (!notesValidation.valid) {
+      return c.json({ error: "Notes must be 0-500 characters" }, 400);
+    }
+
+    const response = await anthropic.messages.create({
+      model: "claude-opus-4-8",
+      max_tokens: 1024,
+      // Stable prefix → cached. cache_control on the last (only) system block.
+      system: [
+        { type: "text", text: LISTING_ASSISTANT_SYSTEM, cache_control: { type: "ephemeral" } },
+      ],
+      // Volatile per-request input lives here, after the cached prefix.
+      messages: [
+        {
+          role: "user",
+          content: `Title: ${title}\nNotes: ${notes || "(none)"}\n\nWrite the listing description.`,
+        },
+      ],
+    });
+
+    const description = response.content
+      .filter((b) => b.type === "text")
+      .map((b) => (b as { text: string }).text)
+      .join("")
+      .trim();
+
+    return c.json({
+      description,
+      // Surfaced so the caller can confirm caching is working: cacheRead > 0 on
+      // repeat calls within the TTL means the system prefix was served from cache.
+      usage: {
+        inputTokens: response.usage.input_tokens,
+        cacheCreationInputTokens: response.usage.cache_creation_input_tokens ?? 0,
+        cacheReadInputTokens: response.usage.cache_read_input_tokens ?? 0,
+        outputTokens: response.usage.output_tokens,
+      },
+    });
+  } catch (error) {
+    console.error("draft-description error:", error);
+    return c.json({ error: "Could not generate a description" }, 500);
   }
 });
 

@@ -5,6 +5,7 @@ import type { User } from '@/types';
 import { Modal } from './Modal';
 import { Avatar } from '@/components/atoms/Avatar';
 import { useToast } from '@/components/atoms/Toast';
+import { useViewMode } from '@/hooks/useViewMode';
 
 export function EditProfileSheet({ user, onClose }: { user: User; onClose: () => void }) {
   const [name, setName] = useState(user.name);
@@ -15,6 +16,7 @@ export function EditProfileSheet({ user, onClose }: { user: User; onClose: () =>
   const fileRef = useRef<HTMLInputElement>(null);
   const { showToast } = useToast();
   const qc = useQueryClient();
+  const [viewMode, setViewMode] = useViewMode();
 
   const onPickPhoto = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -56,6 +58,21 @@ export function EditProfileSheet({ user, onClose }: { user: User; onClose: () =>
       <textarea className="input" value={bio} onChange={(e) => setBio(e.target.value)} style={{ marginTop: 6 }} />
       <label className="field-label" style={{ marginTop: 12 }}>Social URL</label>
       <input className="input" placeholder="https://…" value={socialUrl} onChange={(e) => setSocialUrl(e.target.value)} style={{ marginTop: 6 }} />
+
+      {/* Desktop-only display preference; persists per browser. Hidden on phones
+          (where the phone-frame layout doesn't apply) per the wide-only gate. */}
+      <div className="wide-only" style={{ marginTop: 12 }}>
+        <label className="field-label">Desktop view</label>
+        <div className="segmented" style={{ marginTop: 6, display: 'flex' }}>
+          <button type="button" className={viewMode === 'full' ? 'active' : ''} onClick={() => setViewMode('full')} style={{ flex: 1 }}>
+            Fullscreen
+          </button>
+          <button type="button" className={viewMode === 'frame' ? 'active' : ''} onClick={() => setViewMode('frame')} style={{ flex: 1 }}>
+            Phone frame
+          </button>
+        </div>
+      </div>
+
       <div style={{ display: 'flex', gap: 8, marginTop: 18 }}>
         <button className="btn btn-outline" style={{ flex: 1 }} onClick={onClose}>Cancel</button>
         <button className="btn btn-primary" style={{ flex: 1 }} disabled={!name.trim() || save.isPending} onClick={() => save.mutate()}>

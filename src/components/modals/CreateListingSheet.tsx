@@ -32,6 +32,15 @@ export function CreateListingSheet({ onClose }: { onClose: () => void }) {
     }
   };
 
+  const draft = useMutation({
+    mutationFn: () => API.draftListingDescription(title.trim(), look.trim() || undefined),
+    onSuccess: (r) => {
+      setDesc(r.description);
+      showToast('Draft added — tweak it to taste');
+    },
+    onError: (e: Error) => showToast(e.message || 'AI assistant is unavailable'),
+  });
+
   const mutation = useMutation({
     mutationFn: () =>
       API.createListing({
@@ -56,7 +65,18 @@ export function CreateListingSheet({ onClose }: { onClose: () => void }) {
       <h2>List Your Produce</h2>
       <label className="field-label">What are you sharing?</label>
       <input className="input" placeholder="e.g., Fresh Tomatoes" value={title} onChange={(e) => setTitle(e.target.value)} style={{ marginTop: 6 }} />
-      <label className="field-label" style={{ marginTop: 12 }}>Description</label>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 12 }}>
+        <label className="field-label">Description</label>
+        <button
+          type="button"
+          className="btn btn-ghost btn-sm"
+          disabled={!title.trim() || draft.isPending}
+          onClick={() => draft.mutate()}
+          title={title.trim() ? 'Draft a description with AI' : 'Add a title first'}
+        >
+          {draft.isPending ? 'Drafting…' : '✨ Draft with AI'}
+        </button>
+      </div>
       <textarea className="input" placeholder="Tell others about it…" value={desc} onChange={(e) => setDesc(e.target.value)} style={{ marginTop: 6 }} />
       <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
         <div style={{ flex: 1 }}>

@@ -261,6 +261,17 @@ export class API {
     });
   }
 
+  // AI-drafted listing description (Claude, server-side, prompt-cached).
+  static async draftListingDescription(title: string, notes?: string): Promise<{
+    description: string;
+    usage: { inputTokens: number; cacheCreationInputTokens: number; cacheReadInputTokens: number; outputTokens: number };
+  }> {
+    return this.request('/listings/draft-description', {
+      method: 'POST',
+      body: JSON.stringify({ title, notes }),
+    });
+  }
+
   static async getListings(filters?: { communityId?: string; zipCode?: string }): Promise<{ listings: Listing[] }> {
     const params = filters ? new URLSearchParams(filters as Record<string, string>).toString() : '';
     return this.request(`/listings${params ? `?${params}` : ''}`);

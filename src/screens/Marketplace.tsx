@@ -8,18 +8,23 @@ import { Icon } from '@/components/atoms/Icon';
 import { ListingCard } from '@/components/ListingCard';
 import { ListingGridSkeleton, Skeleton } from '@/components/atoms/Skeleton';
 import { CreateListingSheet } from '@/components/modals/CreateListingSheet';
+import { FindCommunitySheet } from '@/components/modals/FindCommunitySheet';
+import { useAuth } from '@/context/AuthContext';
 
 type SortKey = 'newest' | 'az' | 'trending';
 type Density = 'grid' | 'list';
+type Filter = 'community' | 'all' | 'global';
 
 const SORT_LABEL: Record<SortKey, string> = { newest: 'Newest', az: 'A–Z', trending: 'Trending' };
 
-function TrendingPanel({ items }: { items: Array<{ title: string; offers: number }> }) {
+function TrendingPanel({ items, communityName }: { items: Array<{ title: string; offers: number }>; communityName?: string }) {
   const top = items.filter((i) => i.offers > 0).slice(0, 3);
   if (top.length === 0) return null;
   return (
     <div className="trending">
-      <div className="trending-header">{Icon.bolt(13)} MOST REQUESTED</div>
+      <div className="trending-header">
+        {Icon.bolt(13)} MOST REQUESTED{communityName ? ` IN ${communityName.toUpperCase()}` : ''}
+      </div>
       <div className="trending-list">
         {top.map((item, idx) => (
           <div key={item.title + idx} className="trending-item">
@@ -35,11 +40,13 @@ function TrendingPanel({ items }: { items: Array<{ title: string; offers: number
 
 export default function Marketplace() {
   const navigate = useNavigate();
-  const [filter, setFilter] = useState<'community' | 'all'>('community');
+  const { isAdmin } = useAuth();
+  const [filter, setFilter] = useState<Filter>('community');
   const [search, setSearch] = useState('');
   const [sort, setSort] = useState<SortKey>('newest');
   const [density, setDensity] = useState<Density>('grid');
   const [showCreate, setShowCreate] = useState(false);
+  const [showFindCommunity, setShowFindCommunity] = useState(false);
 
   const communitiesQuery = useQuery({
     queryKey: ['my-communities'],
@@ -51,11 +58,12 @@ export default function Marketplace() {
 
   const listingsQuery = useQuery({
     queryKey: ['listings', filter, activeId, community?.zipCode],
-    queryFn: () =>
-      filter === 'community' && activeId
-        ? API.getListings({ communityId: activeId })
-        : API.getListings({ zipCode: community?.zipCode }),
-    enabled: !!community,
+    queryFn: () => {
+      if (filter === 'global') return API.getListings({}); // every community
+      if (filter === 'community' && activeId) return API.getListings({ communityId: activeId });
+      return API.getListings({ zipCode: community?.zipCode });
+    },
+    enabled: filter === 'global' || !!community,
   });
 
   const trendingQuery = useQuery({
@@ -103,12 +111,19 @@ export default function Marketplace() {
           <Skeleton width="60%" height={12} style={{ marginTop: 4 }} />
         )}
 
-        <div style={{ display: 'flex', gap: 6, marginTop: 12, flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', gap: 6, marginTop: 12, flexWrap: 'wrap', alignItems: 'center' }}>
           <button className={`chip ${filter === 'community' ? 'active' : ''}`} onClick={() => setFilter('community')}>
             {community?.name ?? 'Community'}
           </button>
           <button className={`chip ${filter === 'all' ? 'active' : ''}`} onClick={() => setFilter('all')}>
             All ZIP {community?.zipCode ?? ''}
+          </button>
+          <button
+            className={`chip ${filter === 'global' ? 'active' : ''}`}
+            onClick={() => setShowFindCommunity(true)}
+            style={{ marginLeft: 'auto' }}
+          >
+            {Icon.users(13)} {filter === 'global' ? 'All communities' : 'Community'}
           </button>
         </div>
 
@@ -126,8 +141,13 @@ export default function Marketplace() {
             ))}
           </div>
           <div style={{ display: 'flex', gap: 6 }}>
-            <button className="btn btn-outline btn-sm" onClick={() => setDensity((d) => (d === 'grid' ? 'list' : 'grid'))}>
-              {density === 'grid' ? 'List' : 'Grid'}
+            <button
+              className="btn btn-outline btn-icon"
+              aria-label={density === 'grid' ? 'Switch to list view' : 'Switch to grid view'}
+              title={density === 'grid' ? 'List view' : 'Grid view'}
+              onClick={() => setDensity((d) => (d === 'grid' ? 'list' : 'grid'))}
+            >
+              {density === 'grid' ? Icon.list(16) : Icon.grid(16)}
             </button>
             <button className="btn btn-primary btn-sm" onClick={() => setShowCreate(true)}>{Icon.plus(14)} List</button>
           </div>
@@ -139,14 +159,20 @@ export default function Marketplace() {
           <ListingGridSkeleton count={6} density={density} />
         ) : (
           <>
-            <TrendingPanel items={trendingItems} />
+            <TrendingPanel items={trendingItems} communityName={community?.name} />
             {visible.length === 0 ? (
               <div className="empty-state">
                 <div className="title">{search.trim() ? 'No matches' : 'No listings yet'}</div>
                 <div className="desc">{search.trim() ? 'Try a different search.' : 'Be the first to list produce.'}</div>
               </div>
             ) : (
-              <div style={{ display: 'grid', gridTemplateColumns: density === 'list' ? '1fr' : '1fr 1fr', gap: 10 }}>
+              <div
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: density === 'list' ? '1fr' : 'repeat(auto-fill, minmax(175px, 1fr))',
+                  gap: 10,
+                }}
+              >
                 {visible.map((l) => (
                   <ListingCard
                     key={l.id}
@@ -164,6 +190,13 @@ export default function Marketplace() {
       </div>
 
       {showCreate && <CreateListingSheet onClose={() => setShowCreate(false)} />}
+      {showFindCommunity && (
+        <FindCommunitySheet
+          onClose={() => setShowFindCommunity(false)}
+          isAdmin={isAdmin}
+          onViewAllCommunities={() => setFilter('global')}
+        />
+      )}
     </>
   );
 }

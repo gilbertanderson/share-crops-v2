@@ -3,7 +3,7 @@ import { API, AuthManager } from '@/lib/api';
 import { useAuth } from '@/context/AuthContext';
 import { useToast } from '@/components/atoms/Toast';
 import { validateEmail, validatePassword, LoginAttemptTracker } from '@/lib/security';
-import { Tomato } from '@/components/atoms/Tomato';
+import { TomatoMark } from '@/components/atoms/TomatoMark';
 
 type Mode = 'login' | 'signup';
 
@@ -85,7 +85,7 @@ export default function Auth() {
     <div className="auth-wrap">
       <form className="auth-card" onSubmit={submit}>
         <div className="auth-brand">
-          <div className="auth-logo"><Tomato filled size={52} /></div>
+          <div className="auth-logo"><TomatoMark size={64} /></div>
           <h1 className="serif">Share Crops</h1>
           <p>Trade what you grow with your community.</p>
         </div>

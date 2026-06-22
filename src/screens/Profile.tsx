@@ -1,10 +1,11 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueries, useMutation, useQueryClient } from '@tanstack/react-query';
 import { API } from '@/lib/api';
 import type { Rating } from '@/types';
 import { useMe } from '@/hooks/useMe';
 import { useAuth } from '@/context/AuthContext';
+import { useToast } from '@/components/atoms/Toast';
 import { Avatar } from '@/components/atoms/Avatar';
 import { TomatoRow } from '@/components/atoms/Tomato';
 import { TomatoLoader } from '@/components/atoms/TomatoLoader';
@@ -36,8 +37,36 @@ function RatingCard({ rating }: { rating: Rating }) {
 export default function Profile() {
   const navigate = useNavigate();
   const { logout } = useAuth();
+  const { showToast } = useToast();
+  const qc = useQueryClient();
   const { data: me, isLoading } = useMe();
   const [showEdit, setShowEdit] = useState(false);
+
+  const communitiesQuery = useQuery({ queryKey: ['my-communities'], queryFn: () => API.getMyCommunities() });
+  const communities = communitiesQuery.data?.communities ?? [];
+  const activeCommunityId = communitiesQuery.data?.activeCommunityId ?? null;
+
+  // One member-preview query per community (avatars shown on each card).
+  const memberPreviews = useQueries({
+    queries: communities.map((c) => ({
+      queryKey: ['community-members-preview', c.id],
+      queryFn: () => API.getCommunityMembersPreview(c.id),
+      staleTime: 60_000,
+    })),
+  });
+  const membersByCommunity = Object.fromEntries(
+    communities.map((c, i) => [c.id, memberPreviews[i]?.data?.members ?? []])
+  );
+
+  const leave = useMutation({
+    mutationFn: (id: string) => API.leaveCommunity(id),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['my-communities'] });
+      qc.invalidateQueries({ queryKey: ['listings'] });
+      showToast('Left community');
+    },
+    onError: (e: Error) => showToast(e.message || 'Could not leave community'),
+  });
 
   const listingsQuery = useQuery({
     queryKey: ['my-listings', me?.id],
@@ -96,6 +125,52 @@ export default function Profile() {
               </div>
             </div>
           ))
+        )}
+      </div>
+
+      <div className="section-head"><h2>My Communities</h2></div>
+      <div style={{ padding: '0 16px 8px', display: 'flex', flexDirection: 'column', gap: 10 }}>
+        {communitiesQuery.isLoading ? (
+          <TomatoLoader size="sm" label="" className="loader-center" />
+        ) : communities.length === 0 ? (
+          <div className="empty-state"><div className="desc">You’re not in any communities yet.</div></div>
+        ) : (
+          communities.map((c) => {
+            const members = membersByCommunity[c.id] ?? [];
+            const visible = members.slice(0, 8);
+            const overflow = c.memberCount - visible.length;
+            return (
+              <div key={c.id} className="card" style={{ padding: 14 }}>
+                <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 10 }}>
+                  <div>
+                    <div style={{ fontWeight: 600, fontSize: 14 }}>{c.name}</div>
+                    <div style={{ fontSize: 12, color: 'var(--muted-foreground)', marginTop: 2 }}>
+                      ZIP {c.zipCode} · {c.memberCount} {c.memberCount === 1 ? 'member' : 'members'}
+                    </div>
+                    {activeCommunityId === c.id && (
+                      <div style={{ fontSize: 11, color: 'var(--primary)', fontWeight: 700, marginTop: 3 }}>Active community</div>
+                    )}
+                  </div>
+                  <button
+                    type="button"
+                    className="btn btn-error-outline btn-sm"
+                    disabled={leave.isPending}
+                    onClick={() => { if (window.confirm(`Leave ${c.name}?`)) leave.mutate(c.id); }}
+                  >
+                    Leave
+                  </button>
+                </div>
+                {visible.length > 0 && (
+                  <div className="avatar-stack" style={{ marginTop: 12 }}>
+                    {visible.map((m) => (
+                      <Avatar key={m.id} src={m.profilePhotoUrl} name={m.name} size={32} />
+                    ))}
+                    {overflow > 0 && <div className="avatar-stack-more">+{overflow}</div>}
+                  </div>
+                )}
+              </div>
+            );
+          })
         )}
       </div>
 

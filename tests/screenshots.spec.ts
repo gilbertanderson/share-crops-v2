@@ -1,5 +1,5 @@
 import { test, type Route } from '@playwright/test';
-import { ME, COMMUNITY, LISTINGS, TRENDING, seedAuth } from './fixtures';
+import { ME, COMMUNITY, LISTINGS, TRENDING, MEMBERS, seedAuth } from './fixtures';
 
 // Richer fixtures so the screenshots show populated screens (offers, threads,
 // ratings) rather than empty states. Used only for visual capture.
@@ -60,6 +60,7 @@ async function richBackend(route: Route) {
   if (path === '/auth/me') return json(route, { user: ME });
   if (path === '/communities/mine') return json(route, { communities: [COMMUNITY], activeCommunityId: COMMUNITY.id });
   if (path.startsWith('/communities/search')) return json(route, { communities: [COMMUNITY] });
+  if (path.includes('/members/preview')) return json(route, { members: MEMBERS });
   if (path.startsWith('/trending')) return json(route, { items: TRENDING });
   if (path.startsWith('/offers/my')) return json(route, { offers: OFFERS });
   if (path.startsWith('/chat/threads')) return json(route, { threads: THREADS });
@@ -68,6 +69,10 @@ async function richBackend(route: Route) {
     if (path.includes('/ratings')) return json(route, { ratings: RATINGS });
     if (path.includes('/listings')) return json(route, { listings: LISTINGS });
     return json(route, { profile: PROFILES[uid] ?? ME });
+  }
+  if (path.startsWith('/listings/user/')) {
+    const uid = path.split('/listings/user/')[1];
+    return json(route, { listings: LISTINGS.filter((l) => l.sellerId === uid) });
   }
   if (/^\/listings\/[^/]+$/.test(path)) return json(route, { listing: LISTINGS[0] });
   if (path.startsWith('/listings')) return json(route, { listings: LISTINGS });

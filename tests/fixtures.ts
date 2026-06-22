@@ -15,22 +15,73 @@ const seller = (id: string, name: string, rating: number, count: number) => ({
   id, name, rating, ratingCount: count, role: 'general', email: '', createdAt: '',
 });
 
-export const LISTINGS = [
-  {
-    id: 'l1', sellerId: 's1', title: 'Heirloom Tomatoes', description: 'Sweet, low-acid, picked this morning.',
-    quantity: '6 lbs', photos: ['https://example.com/tomato.jpg'], lookingFor: 'Fresh basil',
-    communityId: 'c1', zipCode: '98112', status: 'active',
-    createdAt: '2026-06-10T00:00:00Z', expiresAt: '2026-06-30T00:00:00Z', seller: seller('s1', 'Maya', 4.8, 42),
-  },
-  {
-    id: 'l2', sellerId: 's2', title: 'Fresh Eggs', description: 'A dozen mixed brown & blue eggs.',
-    quantity: '1 dozen', photos: ['https://example.com/eggs.jpg'],
-    communityId: 'c1', zipCode: '98112', status: 'active',
-    createdAt: '2026-06-09T00:00:00Z', expiresAt: '2026-06-29T00:00:00Z', seller: seller('s2', 'Daniel', 4.4, 27),
-  },
+// Member previews for the profile's "My Communities" avatars.
+export const MEMBERS = [
+  { id: 'me', name: 'Test Grower', profilePhotoUrl: null },
+  { id: 's1', name: 'Maya', profilePhotoUrl: null },
+  { id: 's2', name: 'Daniel', profilePhotoUrl: null },
+  { id: 's3', name: 'Elena', profilePhotoUrl: null },
+  { id: 's4', name: 'Marcus', profilePhotoUrl: null },
+  { id: 's5', name: 'Priya', profilePhotoUrl: null },
+  { id: 's7', name: 'June', profilePhotoUrl: null },
 ];
 
-export const TRENDING = [{ listing: LISTINGS[0], offerCount: 7 }];
+const S1 = seller('s1', 'Maya', 4.8, 42);
+const S2 = seller('s2', 'Daniel', 4.4, 27);
+const S3 = seller('s3', 'Elena', 4.9, 63);
+const S4 = seller('s4', 'Marcus', 4.2, 15);
+const S5 = seller('s5', 'Priya', 5.0, 31);
+const S6 = seller('s6', 'Tom', 3.9, 9);
+const S7 = seller('s7', 'June', 4.7, 54);
+const SME = seller(ME.id, ME.name, ME.rating, ME.ratingCount); // the signed-in (admin) user
+
+// A listing factory keeps the deterministic fields terse; only the interesting
+// bits (title, seller, status, dates) are spelled out per item.
+let order = 0;
+const make = (
+  id: string,
+  sellerObj: ReturnType<typeof seller>,
+  title: string,
+  description: string,
+  quantity: string,
+  extra: Partial<{ lookingFor: string; status: 'active' | 'completed' }> = {}
+) => {
+  order += 1;
+  const day = String(20 - order).padStart(2, '0'); // newer first
+  return {
+    id, sellerId: sellerObj.id, title, description, quantity,
+    photos: [`https://example.com/${id}.jpg`],
+    lookingFor: extra.lookingFor,
+    communityId: 'c1', zipCode: '98112', status: extra.status ?? 'active',
+    createdAt: `2026-06-${day}T00:00:00Z`, expiresAt: '2026-07-05T00:00:00Z', seller: sellerObj,
+  };
+};
+
+export const LISTINGS = [
+  make('l1', S1, 'Heirloom Tomatoes', 'Sweet, low-acid, picked this morning.', '6 lbs', { lookingFor: 'Fresh basil' }),
+  make('l2', S2, 'Fresh Eggs', 'A dozen mixed brown & blue, pasture-raised.', '1 dozen', { lookingFor: 'Sourdough' }),
+  make('l3', S3, 'Genovese Basil', 'Fragrant bunches, perfect for pesto.', '4 bunches', { lookingFor: 'Tomatoes' }),
+  make('l4', S4, 'Rainbow Chard', 'Crisp rainbow stems, cut to order.', '3 bunches'),
+  make('l5', S5, 'Meyer Lemons', 'Thin-skinned and floral, off our backyard tree.', '20 ct', { lookingFor: 'Honey' }),
+  make('l6', S6, 'Sourdough Loaf', 'Naturally leavened, 24-hour ferment.', '2 loaves'),
+  make('l7', S1, 'Sugar Snap Peas', 'Snappy and sweet, great raw.', '2 lbs'),
+  make('l8', S2, 'Zucchini Glut', 'Garden is overflowing — take some please!', '5 lbs', { lookingFor: 'Anything' }),
+  make('l9', S3, 'Strawberries', 'Everbearing, small but intensely sweet.', '3 pints'),
+  make('l10', S7, 'Raw Wildflower Honey', 'Unfiltered, from hives two blocks over.', '3 jars', { lookingFor: 'Lemons' }),
+  make('l11', S4, 'Fingerling Potatoes', 'Buttery and waxy, freshly dug.', '8 lbs', { status: 'completed' }),
+  make('l12', S5, 'Padrón Peppers', 'Blistering-good in a hot pan. One in ten is spicy!', '1 lb'),
+  // The signed-in admin user's own listings (shown under "My Listings").
+  make('l13', SME, 'Carolina Reaper Starts', 'Seedlings for the brave — six to a tray.', '6 starts', { lookingFor: 'Compost' }),
+  make('l14', SME, 'Concord Grapes', 'Old-vine, intensely jammy. Great for jelly.', '4 lbs'),
+  make('l15', SME, 'Lemon Cucumbers', 'Round, mild, and never bitter.', '3 lbs', { lookingFor: 'Dill' }),
+  make('l16', SME, 'Dahlia Bouquet', 'Cut-fresh dinnerplate dahlias, mixed colors.', '2 bunches', { status: 'completed' }),
+];
+
+export const TRENDING = [
+  { listing: LISTINGS[0], offerCount: 7 },
+  { listing: LISTINGS[2], offerCount: 5 },
+  { listing: LISTINGS[8], offerCount: 4 },
+];
 
 function json(route: Route, body: unknown, status = 200) {
   return route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(body) });
@@ -45,9 +96,14 @@ async function dispatch(route: Route) {
   if (path === '/auth/me') return json(route, { user: ME });
   if (path === '/communities/mine') return json(route, { communities: [COMMUNITY], activeCommunityId: COMMUNITY.id });
   if (path.startsWith('/communities/search')) return json(route, { communities: [COMMUNITY] });
+  if (path.includes('/members/preview')) return json(route, { members: MEMBERS });
   if (path.startsWith('/trending')) return json(route, { items: TRENDING });
   if (path.startsWith('/offers/my')) return json(route, { offers: [] });
   if (path.startsWith('/chat/threads')) return json(route, { threads: [] });
+  if (path.startsWith('/listings/user/')) {
+    const uid = path.split('/listings/user/')[1];
+    return json(route, { listings: LISTINGS.filter((l) => l.sellerId === uid) });
+  }
   if (/^\/listings\/[^/]+$/.test(path)) return json(route, { listing: LISTINGS[0] });
   if (path.startsWith('/listings')) return json(route, { listings: LISTINGS });
   if (path.startsWith('/profile/')) return json(route, { profile: ME });

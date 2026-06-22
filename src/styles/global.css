@@ -27,6 +27,7 @@
   --tomato-filled: #E63946;
   --tomato-rotten: #8B4513;
   --stem-green: #4a7c3f;
+  --stage: #E5DFD0;
 
   --radius: 0.5rem;
   --radius-lg: 0.75rem;
@@ -61,17 +62,50 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
 a { color: inherit; }
 
 /* ── App shell ─────────────────────────────────────────── */
+/* Full-bleed, fluid layout (like the older shareCropsApp): the shell fills the
+   viewport and the screens cap their own content width on large displays. */
 .app {
   width: 100%;
   height: 100%;
-  max-width: 520px;
-  margin: 0 auto;
   background: var(--background);
   color: var(--foreground);
   overflow: hidden;
   position: relative;
   display: flex;
   flex-direction: column;
+}
+
+/* Cap screen content on large displays and center it, mirroring shareCropsApp's
+   max-width container — the header/nav bars themselves still span full width. */
+.screen-body > * {
+  width: 100%;
+  max-width: 900px;
+  margin-inline: auto;
+}
+
+/* Only meaningful on wide viewports, so hidden on phones (reappears when a
+   phone requests the desktop site, which widens the viewport past this
+   breakpoint). Used for the phone-frame display preference in Edit Profile. */
+.wide-only { display: none; }
+
+@media (min-width: 900px) {
+  .wide-only { display: block; }
+
+  /* Opt-in phone-frame presentation: app centered on the warm stage as a
+     rounded, shadowed panel — no fake bezel. */
+  html.framed #root {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+    background: var(--stage);
+  }
+  html.framed .app {
+    max-width: 420px;
+    height: min(900px, 100%);
+    border-radius: 26px;
+    box-shadow: 0 30px 70px -24px rgba(34, 29, 23, 0.35), 0 0 0 1px rgba(34, 29, 23, 0.06);
+  }
 }
 
 .screen-body {
@@ -133,20 +167,32 @@ a { color: inherit; }
   border-radius: 12px;
 }
 .bottom-nav button.active { color: var(--primary); }
-.bottom-nav button .icon { width: 22px; height: 22px; }
+.bottom-nav button:hover { color: var(--primary); }
 .bottom-nav button .label { font-size: 10.5px; font-weight: 600; letter-spacing: 0.01em; }
-.bottom-nav button .badge {
-  position: absolute;
-  top: 2px; right: calc(50% - 16px);
-  background: var(--error);
-  color: white;
-  font-size: 9px;
-  font-weight: 700;
-  min-width: 16px; height: 16px;
-  border-radius: 8px;
+
+/* Stacked outline + filled glyph: filled fades in on active/hover, no reflow. */
+.bottom-nav button .nav-ico { position: relative; width: 24px; height: 22px; }
+.bottom-nav button .nav-ico .icon { width: 100%; height: 100%; }
+.bottom-nav button .ico-line,
+.bottom-nav button .ico-fill {
+  position: absolute; inset: 0;
   display: flex; align-items: center; justify-content: center;
-  padding: 0 4px;
-  border: 2px solid var(--card);
+  transition: opacity .12s ease;
+}
+.bottom-nav button .ico-fill { opacity: 0; }
+.bottom-nav button.active .ico-line,
+.bottom-nav button:hover .ico-line { opacity: 0; }
+.bottom-nav button.active .ico-fill,
+.bottom-nav button:hover .ico-fill { opacity: 1; }
+.bottom-nav button:focus-visible { outline: none; }
+.bottom-nav button:focus-visible .nav-ico {
+  outline: 2px solid var(--primary); outline-offset: 4px; border-radius: 8px;
+}
+
+/* On-brand tomato badge — a presence dot, ringed so it lifts off the glyph. */
+.bottom-nav button .nav-badge {
+  position: absolute; top: -4px; right: -6px;
+  filter: drop-shadow(0 0 1.5px var(--card)) drop-shadow(0 0 1.5px var(--card));
 }
 
 /* Buttons */
@@ -401,10 +447,11 @@ textarea.input { resize: none; min-height: 80px; line-height: 1.45; }
 
 /* Profile */
 .profile-hero {
-  background: linear-gradient(180deg, rgba(47,93,58,0.08), rgba(47,93,58,0));
   padding: 24px 16px 16px;
   text-align: center;
 }
+/* Center the tomato rating under the name (the row is flex, left-aligned by default). */
+.profile-hero .tomato-row { justify-content: center; }
 .profile-hero .name { font-family: 'Fraunces', serif; font-size: 24px; font-weight: 600; letter-spacing: -0.01em; margin: 8px 0 2px; }
 .profile-hero .bio { font-size: 13px; color: var(--muted-foreground); max-width: 280px; margin: 6px auto 0; line-height: 1.45; }
 
@@ -506,6 +553,17 @@ textarea.input { resize: none; min-height: 80px; line-height: 1.45; }
 
 .community-result { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 12px 14px; border: 1px solid var(--border); border-radius: var(--radius-lg); background: var(--card); }
 .community-result .meta { font-size: 11.5px; color: var(--muted-foreground); margin-top: 2px; }
+
+/* Overlapping member avatars on the profile's "My Communities" cards. */
+.avatar-stack { display: flex; }
+.avatar-stack > * { margin-left: -8px; border: 2px solid var(--card); }
+.avatar-stack > *:first-child { margin-left: 0; }
+.avatar-stack-more {
+  width: 32px; height: 32px; border-radius: var(--radius-full);
+  background: var(--muted); color: var(--muted-foreground);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 11px; font-weight: 700; margin-left: -8px; border: 2px solid var(--card);
+}
 
 /* Utility */
 .stack { display: flex; flex-direction: column; }

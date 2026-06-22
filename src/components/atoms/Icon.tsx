@@ -58,9 +58,53 @@ export const Icon = {
       <path d="M4 21a8 8 0 0 1 16 0" />
     </svg>
   ),
+  navMarketFilled: (
+    <svg className="icon" viewBox="0 0 24 24" fill="currentColor">
+      <path d="M4.5 3.5h15a1 1 0 0 1 .96.73L22 9.5H2l1.54-5.27A1 1 0 0 1 4.5 3.5Z" />
+      <path d="M3.5 10.5h17V20a1 1 0 0 1-1 1H14v-5.5h-4V21H4.5a1 1 0 0 1-1-1v-9.5Z" />
+    </svg>
+  ),
+  navOffersFilled: (
+    <svg className="icon" viewBox="0 0 24 24" fill="currentColor">
+      <path d="M3 7h18l-2 13H5L3 7Z" />
+      <path d="M8 7V5a4 4 0 0 1 8 0v2" fill="none" stroke="currentColor" strokeWidth="1.8" />
+    </svg>
+  ),
+  navMessagesFilled: (
+    <svg className="icon" viewBox="0 0 24 24" fill="currentColor">
+      <path d="M21 12c0 4.4-4 8-9 8a9.9 9.9 0 0 1-4.3-1L3 20l1.4-3.7A8 8 0 0 1 3 12c0-4.4 4-8 9-8s9 3.6 9 8Z" />
+    </svg>
+  ),
+  navProfileFilled: (
+    <svg className="icon" viewBox="0 0 24 24" fill="currentColor">
+      <circle cx="12" cy="8" r="4.2" />
+      <path d="M3.5 21a8.5 8.5 0 0 1 17 0Z" />
+    </svg>
+  ),
   message: (
     <svg width={16} height={16} fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
       <path d="M21 12c0 4.4-4 8-9 8a9.9 9.9 0 0 1-4.3-1L3 20l1.4-3.7A8 8 0 0 1 3 12c0-4.4 4-8 9-8s9 3.6 9 8Z" />
+    </svg>
+  ),
+  users: (size = 14) => (
+    <svg width={size} height={size} fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+      <path d="M17 20h5v-2a3 3 0 0 0-5.4-1.8M17 20H7m10 0v-2c0-.7-.1-1.3-.4-1.9M7 20H2v-2a3 3 0 0 1 5.4-1.8M7 20v-2c0-.7.1-1.3.4-1.9m0 0a5 5 0 0 1 9.3 0M15 7a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
+    </svg>
+  ),
+  grid: (size = 16) => (
+    <svg width={size} height={size} fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+      <rect x="3" y="3" width="7" height="7" rx="1.5" />
+      <rect x="14" y="3" width="7" height="7" rx="1.5" />
+      <rect x="3" y="14" width="7" height="7" rx="1.5" />
+      <rect x="14" y="14" width="7" height="7" rx="1.5" />
+    </svg>
+  ),
+  list: (size = 16) => (
+    <svg width={size} height={size} fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+      <path d="M8 6h13M8 12h13M8 18h13" />
+      <circle cx="3.5" cy="6" r="1.2" fill="currentColor" stroke="none" />
+      <circle cx="3.5" cy="12" r="1.2" fill="currentColor" stroke="none" />
+      <circle cx="3.5" cy="18" r="1.2" fill="currentColor" stroke="none" />
     </svg>
   ),
   // Sprouting leaf — used as the neutral placeholder when a photo is missing.

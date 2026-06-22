@@ -38,7 +38,7 @@ test('bottom nav moves between tabs', async ({ page }) => {
 
 test('filters listing cards with search', async ({ page }) => {
   await page.goto('/marketplace');
-  await expect(page.locator('.listing-card')).toHaveCount(2);
+  await expect(page.locator('.listing-card')).toHaveCount(16);
   await page.getByPlaceholder('Search produce…').fill('eggs');
   await expect(page.locator('.listing-card')).toHaveCount(1);
   await expect(page.locator(card('Fresh Eggs'))).toBeVisible();
