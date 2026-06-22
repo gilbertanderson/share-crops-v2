@@ -272,8 +272,11 @@ export class API {
     });
   }
 
-  static async getListings(filters?: { communityId?: string; zipCode?: string }): Promise<{ listings: Listing[] }> {
-    const params = filters ? new URLSearchParams(filters as Record<string, string>).toString() : '';
+  static async getListings(
+    filters?: { communityId?: string; zipCode?: string; cursor?: string; limit?: number }
+  ): Promise<{ listings: Listing[]; nextCursor: string | null }> {
+    const entries = Object.entries(filters ?? {}).filter(([, v]) => v !== undefined && v !== '');
+    const params = new URLSearchParams(entries.map(([k, v]) => [k, String(v)])).toString();
     return this.request(`/listings${params ? `?${params}` : ''}`);
   }
 

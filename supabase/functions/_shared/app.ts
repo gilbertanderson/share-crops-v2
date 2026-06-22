@@ -4,6 +4,7 @@ import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { logger } from "hono/logger";
 import * as kv from "./kv_store.ts";
+import * as listingsIndex from "./listings_index.ts";
 import * as security from "./security.ts";
 import { createClient } from "@supabase/supabase-js";
 import Anthropic from "@anthropic-ai/sdk";
@@ -685,6 +686,8 @@ const deleteListingRecords = async (listing: any) => {
   if (listing.sellerId) {
     await kv.del(`listing:user:${listing.sellerId}:${listing.id}`);
   }
+
+  await listingsIndex.removeListing(listing.id);
 };
 
 const toSerializableObject = (value: any): any | null => {
@@ -1384,6 +1387,7 @@ app.post("/make-server-dd877831/listings", async (c) => {
     await kv.set(`listing:${listingId}`, listing);
     await kv.set(`listing:community:${communityId}:${listingId}`, listing);
     await kv.set(`listing:user:${user.id}:${listingId}`, listing);
+    await listingsIndex.upsertListing(listing);
 
     security.logSecurityEvent('listing_created', 'low', { userId: user.id, listingId });
     return c.json({ success: true, listing });
@@ -1398,38 +1402,20 @@ app.get("/make-server-dd877831/listings", async (c) => {
   try {
     const communityId = c.req.query('communityId');
     const zipCode = c.req.query('zipCode');
+    const cursor = c.req.query('cursor');
+    const limit = Number(c.req.query('limit') ?? 50);
 
-    let listings = [];
+    // Indexed, keyset-paginated read from the secondary index — active &
+    // non-expired, newest-first — instead of scanning every listing:community:
+    // key and filtering/sorting in JS.
+    const { listings, nextCursor } = await listingsIndex.queryListings({
+      communityId: communityId || null,
+      zipCode: zipCode || null,
+      limit: Number.isFinite(limit) ? limit : 50,
+      cursor: cursor || null,
+    });
 
-    if (communityId) {
-      listings = await kv.getByPrefix(`listing:community:${communityId}:`);
-    } else if (zipCode) {
-      const allListings = await kv.getByPrefix('listing:community:');
-      listings = allListings.filter((l: any) => l.zipCode === zipCode);
-    } else {
-      listings = await kv.getByPrefix('listing:community:');
-    }
-
-    const safeListings = Array.isArray(listings)
-      ? listings.filter((l: any) => l && typeof l === 'object')
-      : [];
-
-    const activeListings: any[] = [];
-    for (const listing of safeListings) {
-      if (isListingExpired(listing)) {
-        await deleteListingRecords(listing);
-        continue;
-      }
-
-      if (listing.status === 'active') {
-        activeListings.push(listing);
-      }
-    }
-
-    // Sort by created date (newest first)
-    activeListings.sort((a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-
-    return c.json({ listings: activeListings });
+    return c.json({ listings, nextCursor });
   } catch (error) {
     console.error("Get listings error:", error);
     return c.json({ error: "Failed to get listings" }, 500);
@@ -1730,6 +1716,10 @@ app.post("/make-server-dd877831/offers/:id/complete", async (c) => {
       // Remove old seller index and add new seller index
       await kv.del(`listing:user:${oldSellerId}:${offer.listingId}`);
       await kv.set(`listing:user:${newSellerId}:${offer.listingId}`, listing);
+
+      // Mirror the status/owner change into the secondary index. Now 'completed',
+      // it drops out of the active feed automatically.
+      await listingsIndex.upsertListing(listing);
     }
 
     return c.json({ success: true, offer });
