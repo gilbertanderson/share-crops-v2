@@ -1,0 +1,15 @@
+node_modules
+dist
+dist-ssr
+*.local
+.env.local
+.DS_Store
+.vscode/*
+!.vscode/extensions.json
+.vercel
+api/index.js
+
+# Test artifacts
+test-results
+playwright-report
+supabase/.temp
