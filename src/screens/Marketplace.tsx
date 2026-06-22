@@ -85,7 +85,10 @@ export default function Marketplace() {
     return m;
   }, [trendingQuery.data]);
 
-  const listings = listingsQuery.data?.listings ?? [];
+  const listings = useMemo(
+    () => (listingsQuery.data?.pages ?? []).flatMap((p) => p.listings),
+    [listingsQuery.data]
+  );
 
   const visible = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -186,6 +189,17 @@ export default function Marketplace() {
                     onClick={() => navigate(`/listing/${l.id}`)}
                   />
                 ))}
+              </div>
+            )}
+            {listingsQuery.hasNextPage && !search.trim() && (
+              <div style={{ display: 'flex', justifyContent: 'center', marginTop: 16 }}>
+                <button
+                  className="btn btn-outline"
+                  disabled={listingsQuery.isFetchingNextPage}
+                  onClick={() => listingsQuery.fetchNextPage()}
+                >
+                  {listingsQuery.isFetchingNextPage ? 'Loading…' : 'Load more'}
+                </button>
               </div>
             )}
           </>
