@@ -2335,9 +2335,14 @@ app.post("/make-server-dd877831/listings/draft-description", async (c) => {
     }
 
     const response = await anthropic.messages.create({
-      model: "claude-opus-4-8",
+      // Haiku 4.5 — this is a short, tightly-constrained ≤200-char text task;
+      // Opus-tier is overkill. ~5x cheaper than Opus 4.8 at equal quality here.
+      model: "claude-haiku-4-5",
       max_tokens: 1024,
-      // Stable prefix → cached. cache_control on the last (only) system block.
+      // cache_control marks the stable system prefix, but it is a no-op at this
+      // size: the prompt is ~475 tokens and the min cacheable prefix is 4096
+      // tokens (Haiku 4.5 / Opus). Kept so caching kicks in automatically if the
+      // system prompt ever grows past the threshold; harmless until then.
       system: [
         { type: "text", text: LISTING_ASSISTANT_SYSTEM, cache_control: { type: "ephemeral" } },
       ],

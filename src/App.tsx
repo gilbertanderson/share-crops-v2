@@ -1,5 +1,5 @@
 import React, { lazy } from 'react';
-import { Navigate, Route, Routes } from 'react-router';
+import { Navigate, Route, Routes, useLocation } from 'react-router';
 import { useAuth } from '@/context/AuthContext';
 import { AppLayout } from '@/components/AppLayout';
 import { TomatoLoader } from '@/components/atoms/TomatoLoader';
@@ -13,9 +13,21 @@ const Offers = lazy(() => import('@/screens/Offers'));
 const Messages = lazy(() => import('@/screens/Messages'));
 const ChatThread = lazy(() => import('@/screens/ChatThread'));
 const Profile = lazy(() => import('@/screens/Profile'));
+const FirebaseAuthDemo = lazy(() => import('@/screens/FirebaseAuthDemo'));
 
 export default function App() {
   const { isAuthenticated, hasCompletedSetup, loading } = useAuth();
+  const location = useLocation();
+
+  // Isolated Firebase Auth proof-of-life — reachable regardless of Supabase
+  // auth state, before the gates below. Remove once the real swap lands.
+  if (location.pathname === '/firebase-demo') {
+    return (
+      <React.Suspense fallback={<div className="center-fill"><TomatoLoader size="lg" /></div>}>
+        <FirebaseAuthDemo />
+      </React.Suspense>
+    );
+  }
 
   if (loading) {
     return (
