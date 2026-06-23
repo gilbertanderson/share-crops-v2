@@ -5,6 +5,7 @@ import { cors } from "hono/cors";
 import { logger } from "hono/logger";
 import * as kv from "./kv_store.ts";
 import * as listingsIndex from "./listings_index.ts";
+import * as db from "./db.ts";
 import * as security from "./security.ts";
 import { createClient } from "@supabase/supabase-js";
 import Anthropic from "@anthropic-ai/sdk";
@@ -486,25 +487,50 @@ if (getEnv("SKIP_INIT") !== "true") {
   seedTempUserListingOffers();
 }
 
+// Pluggable bearer-token verifier. Returns a minimal authed-user shape or null.
+// The default verifies Supabase JWTs (used by the Deno edge function). The Node/
+// Vercel entry overrides this with Firebase Admin `verifyIdToken` via
+// `setTokenVerifier`, keeping this shared backend runtime-agnostic — firebase-admin
+// can't run on Deno, so it must never be imported here.
+export type AuthedUser = {
+  id: string;
+  email: string | null;
+  user_metadata?: Record<string, any>;
+};
+
+export type TokenVerifier = (token: string) => Promise<AuthedUser | null>;
+
+let verifyToken: TokenVerifier = async (token) => {
+  const supabase = getServiceRoleClient();
+  const { data: { user }, error } = await supabase.auth.getUser(token);
+  if (error || !user) return null;
+  return user as AuthedUser;
+};
+
+export const setTokenVerifier = (fn: TokenVerifier): void => {
+  verifyToken = fn;
+};
+
 // Helper: Get authenticated user
 const getAuthUser = async (authHeader: string | null) => {
   if (!authHeader) {
     security.logSecurityEvent('missing_auth_header', 'medium', { timestamp: new Date().toISOString() });
+    return null;
   }
 
-  // Validate token structure
+  // Validate the Authorization header shape: `Bearer <token>`.
   const parts = authHeader.split(' ');
   if (parts.length !== 2 || parts[0].toLowerCase() !== 'bearer') {
-    security.logSecurityEvent('invalid_auth_format', 'medium', { 
+    security.logSecurityEvent('invalid_auth_format', 'medium', {
       format: parts[0],
-      timestamp: new Date().toISOString() 
+      timestamp: new Date().toISOString(),
     });
     return null;
   }
 
   const token = parts[1];
 
-  // Validate token structure (basic JWT validation)
+  // Cheap structural JWT check before the (network-bound) signature verify.
   const tokenValidation = security.validateJwtStructure(token);
   if (!tokenValidation.valid) {
     security.logSecurityEvent('invalid_token_structure', 'high', {
@@ -515,25 +541,14 @@ const getAuthUser = async (authHeader: string | null) => {
   }
 
   try {
-    const supabase = getServiceRoleClient();
-    const { data: { user }, error } = await supabase.auth.getUser(token);
-    
-    if (error) {
-      security.logSecurityEvent('auth_error', 'high', {
-        error: error.message,
-        timestamp: new Date().toISOString(),
-      });
-      return null;
-    }
+    const user = await verifyToken(token);
 
     if (!user) {
-      security.logSecurityEvent('no_user_in_token', 'medium', {
-        timestamp: new Date().toISOString(),
-      });
+      security.logSecurityEvent('auth_error', 'high', { timestamp: new Date().toISOString() });
       return null;
     }
 
-    // Validate user object has required fields
+    // Routes key everything off id + email, so both are required.
     if (!user.id || !user.email) {
       security.logSecurityEvent('incomplete_user_data', 'high', {
         timestamp: new Date().toISOString(),
@@ -547,24 +562,7 @@ const getAuthUser = async (authHeader: string | null) => {
       error: String(error),
       timestamp: new Date().toISOString(),
     });
-
-  if (!profile) {
-    security.logSecurityEvent('missing_user_profile', 'medium', {
-      userId,
-      timestamp: new Date().toISOString(),
-    });
-    return 'general';
-  }
-
-  if (typeof profile.role !== 'string') {
-    security.logSecurityEvent('invalid_user_role', 'medium', {
-      userId,
-      timestamp: new Date().toISOString(),
-    });
-    return 'general';
-  }
-
-  return normalizeUserRole(profile.role);
+    return null;
   }
 };
 
@@ -676,28 +674,9 @@ const isListingExpired = (listing: any): boolean => {
 
 const deleteListingRecords = async (listing: any) => {
   if (!listing?.id) return;
-
-  await kv.del(`listing:${listing.id}`);
-
-  if (listing.communityId) {
-    await kv.del(`listing:community:${listing.communityId}:${listing.id}`);
-  }
-
-  if (listing.sellerId) {
-    await kv.del(`listing:user:${listing.sellerId}:${listing.id}`);
-  }
-
-  await listingsIndex.removeListing(listing.id);
-};
-
-const toSerializableObject = (value: any): any | null => {
-  if (!value || typeof value !== 'object') return null;
-
-  try {
-    return JSON.parse(JSON.stringify(value));
-  } catch {
-    return null;
-  }
+  // One row now (offers cascade via FK), instead of 3 hand-synced KV copies +
+  // the secondary index.
+  await db.deleteListing(listing.id);
 };
 
 // Health check endpoint
@@ -1361,12 +1340,15 @@ app.post("/make-server-dd877831/listings", async (c) => {
       return c.json({ error: "Invalid characters detected in input" }, 400);
     }
 
-    const communityId = await kv.get(`user:${user.id}:community`);
+    const communityId = await db.getActiveCommunityId(user.id);
     if (!communityId) {
       return c.json({ error: "You must join a community first" }, 400);
     }
 
-    const community = await kv.get(`community:id:${communityId}`);
+    const community = await db.getCommunity(communityId);
+    if (!community) {
+      return c.json({ error: "You must join a community first" }, 400);
+    }
 
     const listingId = crypto.randomUUID();
     const listing = {
@@ -1384,13 +1366,12 @@ app.post("/make-server-dd877831/listings", async (c) => {
       expiresAt: new Date(Date.now() + parsedExpiration * 24 * 60 * 60 * 1000).toISOString(),
     };
 
-    await kv.set(`listing:${listingId}`, listing);
-    await kv.set(`listing:community:${communityId}:${listingId}`, listing);
-    await kv.set(`listing:user:${user.id}:${listingId}`, listing);
-    await listingsIndex.upsertListing(listing);
+    // One INSERT (location is geocoded from zip at backfill time); the feed and
+    // "near me" reads come straight off this row's indexes.
+    const created = await db.insertListing(listing);
 
     security.logSecurityEvent('listing_created', 'low', { userId: user.id, listingId });
-    return c.json({ success: true, listing });
+    return c.json({ success: true, listing: created });
   } catch (error) {
     console.error("Create listing error:", error);
     security.logSecurityEvent('create_listing_exception', 'critical', { error: String(error) });
@@ -1405,10 +1386,10 @@ app.get("/make-server-dd877831/listings", async (c) => {
     const cursor = c.req.query('cursor');
     const limit = Number(c.req.query('limit') ?? 50);
 
-    // Indexed, keyset-paginated read from the secondary index — active &
+    // Indexed, keyset-paginated read off the listings table — active &
     // non-expired, newest-first — instead of scanning every listing:community:
     // key and filtering/sorting in JS.
-    const { listings, nextCursor } = await listingsIndex.queryListings({
+    const { listings, nextCursor } = await db.queryListingsFeed({
       communityId: communityId || null,
       zipCode: zipCode || null,
       limit: Number.isFinite(limit) ? limit : 50,
@@ -1422,6 +1403,37 @@ app.get("/make-server-dd877831/listings", async (c) => {
   }
 });
 
+// "Near me": active listings within a radius of (lat,lng), nearest-first.
+// Net-new capability (PostGIS ST_DWithin); declared before /listings/:id so the
+// literal path isn't captured by the :id param.
+app.get("/make-server-dd877831/listings/near", async (c) => {
+  try {
+    const lat = Number(c.req.query('lat'));
+    const lng = Number(c.req.query('lng'));
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+      return c.json({ error: "lat and lng query params are required" }, 400);
+    }
+
+    const radiusMilesRaw = Number(c.req.query('radiusMiles'));
+    const limit = Number(c.req.query('limit') ?? 50);
+    const communityId = c.req.query('communityId');
+
+    const listings = await db.listingsNear({
+      lat,
+      lng,
+      // Let the data layer own the unit conversion and the default radius.
+      radiusMiles: Number.isFinite(radiusMilesRaw) ? radiusMilesRaw : undefined,
+      communityId: communityId || null,
+      limit: Number.isFinite(limit) ? limit : 50,
+    });
+
+    return c.json({ listings });
+  } catch (error) {
+    console.error("Get listings near error:", error);
+    return c.json({ error: "Failed to get nearby listings" }, 500);
+  }
+});
+
 app.get("/make-server-dd877831/listings/:id", async (c) => {
   try {
     const id = c.req.param('id');
@@ -1431,38 +1443,25 @@ app.get("/make-server-dd877831/listings/:id", async (c) => {
       return c.json({ error: "Listing not found" }, 404);
     }
     
-    // Prefer canonical listing key first; fallback to community index for legacy data.
+    // Single indexed primary-key read (the legacy community-index fallback scan
+    // is obsolete now that there's one canonical row).
     let listing: any = null;
     try {
-      const primaryListing = await kv.get(`listing:${id}`);
-      if (primaryListing && typeof primaryListing === 'object') {
-        listing = primaryListing;
-      } else {
-        const allCommunityListings = await kv.getByPrefix('listing:community:');
-        if (Array.isArray(allCommunityListings)) {
-          listing = allCommunityListings.find((l: any) => l && typeof l === 'object' && l.id === id) || null;
-        }
-      }
+      listing = await db.getListing(id);
     } catch (searchError) {
-      console.error(`[GET /listings/:id] Community index search failed:`, searchError);
+      console.error(`[GET /listings/:id] Listing lookup failed:`, searchError);
       return c.json({ error: "Failed to get listing" }, 500);
     }
 
-    if (!listing || typeof listing !== 'object') {
-      console.log(`[GET /listings/:id] Listing not found or invalid type`);
+    // db.getListing returns a typed DTO or null — no more defending against
+    // untyped KV blobs / serializability.
+    if (!listing) {
       return c.json({ error: "Listing not found" }, 404);
     }
 
-    const safeListing = toSerializableObject(listing);
-    if (!safeListing) {
-      console.log(`[GET /listings/:id] Listing is not serializable`);
-      return c.json({ error: "Listing not found" }, 404);
-    }
-
-    if (isListingExpired(safeListing)) {
-      console.log(`[GET /listings/:id] Listing is expired`);
+    if (isListingExpired(listing)) {
       try {
-        await deleteListingRecords(safeListing);
+        await deleteListingRecords(listing);
       } catch (cleanupError) {
         console.error(`[GET /listings/:id] Expired listing cleanup failed:`, cleanupError);
       }
@@ -1471,18 +1470,15 @@ app.get("/make-server-dd877831/listings/:id", async (c) => {
 
     // Seller lookup should not fail the whole listing response.
     let seller = null;
-    if (safeListing.sellerId) {
+    if (listing.sellerId) {
       try {
-        seller = await kv.get(`user:${safeListing.sellerId}`);
+        seller = await db.getProfile(listing.sellerId);
       } catch (sellerError) {
         console.error("Get listing seller error:", sellerError);
       }
     }
 
-    const safeSeller = toSerializableObject(seller);
-    const response = { listing: { ...safeListing, seller: safeSeller } };
-    console.log(`[GET /listings/:id] Returning response, listing has keys:`, Object.keys(safeListing || {}).join(','));
-    return c.json(response);
+    return c.json({ listing: { ...listing, seller } });
   } catch (error) {
     console.error("Get listing error:", error);
     return c.json({ error: "Failed to get listing" }, 500);
@@ -1495,7 +1491,7 @@ app.delete("/make-server-dd877831/listings/:id", async (c) => {
 
   try {
     const id = c.req.param('id');
-    const listing = await kv.get(`listing:${id}`);
+    const listing = await db.getListing(id);
 
     if (!listing || typeof listing !== 'object') {
       return c.json({ error: "Listing not found" }, 404);
@@ -1519,33 +1515,18 @@ app.get("/make-server-dd877831/listings/user/:userId", async (c) => {
     const userId = c.req.param('userId');
     console.log(`[GET /listings/user/:userId] Fetching listings for userId: ${userId}`);
     
-    let rawListings;
+    // Indexed read off listings(seller_id), already active/non-expired and
+    // newest-first — no prefix scan, no JS filter/sort, no inline expiry cleanup
+    // (the query's expires_at predicate hides expired rows).
+    let visibleListings: any[] = [];
     try {
-      rawListings = await kv.getByPrefix(`listing:user:${userId}:`);
-      console.log(`[GET /listings/user/:userId] KV.getByPrefix returned:`, Array.isArray(rawListings) ? `array with ${rawListings.length} items` : "non-array");
-    } catch (kvError) {
-      console.error(`[GET /listings/user/:userId] KV.getByPrefix failed:`, kvError);
+      visibleListings = await db.getListingsByUser(userId);
+    } catch (dbError) {
+      console.error(`[GET /listings/user/:userId] query failed:`, dbError);
       return c.json({ error: "Failed to fetch listings from store" }, 500);
     }
-    
-    const safeListings = Array.isArray(rawListings)
-      ? rawListings.filter((l: any) => l && typeof l === 'object')
-      : [];
 
-    console.log(`[GET /listings/user/:userId] After filtering: ${safeListings.length} safe listings`);
-
-    const visibleListings: any[] = [];
-    for (const listing of safeListings) {
-      if (isListingExpired(listing)) {
-        await deleteListingRecords(listing);
-        continue;
-      }
-      visibleListings.push(listing);
-    }
-
-    console.log(`[GET /listings/user/:userId] After expiration check: ${visibleListings.length} visible listings`);
-    visibleListings.sort((a: any, b: any) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
-
+    console.log(`[GET /listings/user/:userId] returning ${visibleListings.length} visible listings`);
     return c.json({ listings: visibleListings });
   } catch (error) {
     console.error("Get user listings error:", error);

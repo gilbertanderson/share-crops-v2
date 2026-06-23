@@ -19,7 +19,12 @@
 // whether Vercel hands us the original path (/api/make-server-dd877831/*) or a
 // prefix-stripped one (/make-server-dd877831/*).
 import { Hono } from 'hono';
-import { app } from '../supabase/functions/_shared/app';
+import { app, setTokenVerifier } from '../supabase/functions/_shared/app';
+import { verifyFirebaseToken } from './firebaseAdmin';
+
+// On Node/Vercel, verify bearer tokens as Firebase ID tokens (Admin SDK) instead
+// of the shared backend's default Supabase-JWT check. Set once at module load.
+setTokenVerifier(verifyFirebaseToken);
 
 const root = new Hono();
 root.route('/api', app);

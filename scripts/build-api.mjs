@@ -18,6 +18,12 @@ await build({
   // esbuild keeps Node built-ins (node:*, fs, etc.) external automatically on
   // platform:node; everything else (hono, @supabase/supabase-js, shared code)
   // is inlined so the deployed function has zero unresolved imports.
+  //
+  // firebase-admin is the exception: it has native/gRPC deps and dynamic
+  // requires that don't bundle cleanly. Leaving it external keeps the `import`
+  // statements in the output, which Vercel's file tracer (@vercel/nft) follows
+  // to include the package from node_modules at deploy time.
+  external: ['firebase-admin', 'firebase-admin/*'],
   logLevel: 'info',
   // ESM bundles that reference CJS globals (some transitive deps do) need these
   // shimmed at the top of the output.
