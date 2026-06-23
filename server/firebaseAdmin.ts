@@ -22,10 +22,16 @@ function initAdmin(): void {
 // null on any invalid/expired token (the caller logs it as an auth error, not a
 // crash). The user_metadata mirror lets the existing OAuth auto-provision path
 // (which reads full_name/name/avatar_url/picture) work unchanged.
+//
+// Security gate: tokens whose email is not yet verified are rejected. This stops
+// someone from signing up with an email they don't control and immediately
+// acting as that identity. Federated providers (Google) return email_verified
+// true; email/password users must complete the verification email first.
 export async function verifyFirebaseToken(token: string): Promise<AuthedUser | null> {
   initAdmin();
   try {
     const decoded = await getAuth().verifyIdToken(token);
+    if (decoded.email && !decoded.email_verified) return null;
     return {
       id: decoded.uid,
       email: decoded.email ?? null,
