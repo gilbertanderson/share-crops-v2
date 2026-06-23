@@ -4,6 +4,10 @@ dist-ssr
 *.local
 .env.local
 .DS_Store
+
+# Firebase service-account keys — NEVER commit. Real private keys.
+*firebase-adminsdk*.json
+serviceAccount*.json
 .vscode/*
 !.vscode/extensions.json
 .vercel
