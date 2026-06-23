@@ -1,13 +1,16 @@
 import { projectId, publicAnonKey } from '@/config/info';
+import { getIdToken } from '@/lib/firebaseAuth';
 import type { User, Listing, Offer, Thread, Message, Rating, Community } from '@/types';
 
-// Primary backend: the Supabase Edge Function. Fallback: a Vercel-hosted
-// deployment of the SAME Hono app (set VITE_FALLBACK_API_URL to e.g.
-// https://<app>.vercel.app/api/make-server-dd877831). When the primary is
-// unreachable or returns a server error, requests retry against the fallback.
-const PRIMARY_BASE = `https://${projectId}.supabase.co/functions/v1/make-server-dd877831`;
-const FALLBACK_BASE = (import.meta.env.VITE_FALLBACK_API_URL || '').replace(/\/$/, '');
-const BASES = [PRIMARY_BASE, ...(FALLBACK_BASE ? [FALLBACK_BASE] : [])];
+// Primary backend: the Vercel-hosted Hono app (Node + Firebase Admin), because
+// it's the one that verifies the Firebase ID tokens the app sends. Set
+// VITE_FALLBACK_API_URL to e.g. https://<app>.vercel.app/api/make-server-dd877831.
+// The Supabase Edge Function trails as a last resort: it can't verify Firebase
+// tokens, so it only serves unauthenticated/public endpoints. (Failover only
+// kicks in on 5xx/429 — a 401 is a definitive answer and is returned as-is.)
+const VERCEL_BASE = (import.meta.env.VITE_FALLBACK_API_URL || '').replace(/\/$/, '');
+const SUPABASE_EDGE_BASE = `https://${projectId}.supabase.co/functions/v1/make-server-dd877831`;
+const BASES = [VERCEL_BASE, SUPABASE_EDGE_BASE].filter(Boolean);
 
 async function fetchWithFailover(endpoint: string, init: RequestInit): Promise<Response> {
   let lastErr: unknown;
@@ -78,7 +81,7 @@ export class API {
     endpoint: string,
     options: RequestInit = {}
   ): Promise<T> {
-    const token = AuthManager.getToken();
+    const token = await getIdToken();
     const headers: HeadersInit = {
       'Content-Type': 'application/json',
       Authorization: `Bearer ${token || publicAnonKey}`,
@@ -98,9 +101,6 @@ export class API {
     }
 
     if (!response.ok) {
-      if (response.status === 401) {
-        AuthManager.clearToken();
-      }
       throw new Error(
         data?.error ||
         data?.message ||
@@ -113,7 +113,7 @@ export class API {
   }
 
   private static async uploadFile(endpoint: string, file: File): Promise<{ url: string }> {
-    const token = AuthManager.getToken();
+    const token = await getIdToken();
     const formData = new FormData();
     formData.append('file', file);
 
@@ -134,58 +134,16 @@ export class API {
     return data as { url: string };
   }
 
-  // Auth
-  static async signup(email: string, password: string, name: string): Promise<{ user: User; accessToken: string }> {
-    return this.request('/auth/signup', {
-      method: 'POST',
-      body: JSON.stringify({ email, password, name }),
-    });
-  }
-
-  static async login(email: string, password: string): Promise<{ user: User; accessToken: string }> {
-    const data = await this.request<{ user: User; accessToken: string }>('/auth/login', {
-      method: 'POST',
-      body: JSON.stringify({ email, password }),
-    });
-
-    if (data.accessToken) {
-      AuthManager.setToken(data.accessToken);
-      AuthManager.resetCommunitySelection();
-    }
-
-    return data;
-  }
-
+  // Auth — sign-in/up/reset now run client-side via @/lib/firebaseAuth; the
+  // backend only resolves the app profile for the current Firebase identity
+  // (auto-provisioning one on first call). The Firebase ID token is attached as
+  // the bearer by `request()`.
   static async getMe(): Promise<{ user: User }> {
     const data = await this.request<{ user: User }>('/auth/me');
     if (data.user) {
       AuthManager.setUser(data.user);
     }
     return data;
-  }
-
-  static async resetPassword(email: string): Promise<{ success: boolean }> {
-    const { supabase } = await import('./supabase');
-    const { error } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: `${window.location.origin}/reset-password`,
-    });
-    if (error) throw new Error(error.message);
-    return { success: true };
-  }
-
-  // OAuth
-  static async signInWithOAuth(provider: 'google' = 'google'): Promise<void> {
-    const { supabase } = await import('./supabase');
-    const { error } = await supabase.auth.signInWithOAuth({
-      provider,
-      options: {
-        redirectTo: `${window.location.origin}/auth/callback`,
-      },
-    });
-
-    if (error) {
-      throw new Error(error.message || `${provider} sign-in failed`);
-    }
   }
 
   // Communities

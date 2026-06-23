@@ -1,14 +1,47 @@
 import React, { useState } from 'react';
-import { API, AuthManager } from '@/lib/api';
 import { useAuth } from '@/context/AuthContext';
 import { useToast } from '@/components/atoms/Toast';
 import { validateEmail, validatePassword, LoginAttemptTracker } from '@/lib/security';
 import { TomatoMark } from '@/components/atoms/TomatoMark';
+import {
+  signUpWithEmail,
+  signInWithEmail,
+  signInWithGoogle,
+  sendVerificationEmail,
+  reloadCurrentUser,
+  sendPasswordReset,
+  currentUserEmail,
+} from '@/lib/firebaseAuth';
 
 type Mode = 'login' | 'signup';
 
+// Map the Firebase auth error codes the sign-in/up flows can throw to friendly,
+// non-enumerating copy (we don't reveal whether an email exists).
+function friendlyAuthError(err: unknown): string {
+  const code = (err as { code?: string })?.code ?? '';
+  switch (code) {
+    case 'auth/invalid-credential':
+    case 'auth/wrong-password':
+    case 'auth/user-not-found':
+      return 'Incorrect email or password.';
+    case 'auth/email-already-in-use':
+      return 'An account with that email already exists. Try logging in.';
+    case 'auth/weak-password':
+      return 'Please choose a stronger password (at least 6 characters).';
+    case 'auth/too-many-requests':
+      return 'Too many attempts. Please wait a bit and try again.';
+    case 'auth/popup-closed-by-user':
+    case 'auth/cancelled-popup-request':
+      return 'Google sign-in was cancelled.';
+    case 'auth/network-request-failed':
+      return 'Network error. Check your connection and try again.';
+    default:
+      return (err as Error)?.message || 'Something went wrong.';
+  }
+}
+
 export default function Auth() {
-  const { refreshAuth } = useAuth();
+  const { refreshAuth, needsEmailVerification, logout } = useAuth();
   const { showToast } = useToast();
   const [mode, setMode] = useState<Mode>('login');
   const [name, setName] = useState('');
@@ -44,17 +77,18 @@ export default function Auth() {
     setBusy(true);
     try {
       if (mode === 'signup') {
-        const { accessToken } = await API.signup(email, password, name.trim());
-        if (accessToken) AuthManager.setToken(accessToken);
+        // Creates the account, sets the display name, and sends a verification
+        // email. AuthContext (via onAuthChange) then shows the verify screen.
+        await signUpWithEmail(email, password, name.trim());
       } else {
-        await API.login(email, password);
+        await signInWithEmail(email, password);
         LoginAttemptTracker.clear(email);
       }
+      // onAuthChange drives AuthContext; refresh covers the already-verified case.
       await refreshAuth();
-      // App-level routing redirects to /community-setup or /marketplace.
     } catch (err) {
       if (mode === 'login') LoginAttemptTracker.record(email);
-      setError((err as Error).message || 'Something went wrong.');
+      setError(friendlyAuthError(err));
     } finally {
       setBusy(false);
     }
@@ -62,9 +96,10 @@ export default function Auth() {
 
   const oauth = async () => {
     try {
-      await API.signInWithOAuth('google');
+      await signInWithGoogle();
+      await refreshAuth();
     } catch (err) {
-      showToast((err as Error).message || 'Google sign-in failed');
+      showToast(friendlyAuthError(err));
     }
   };
 
@@ -74,12 +109,17 @@ export default function Auth() {
       return;
     }
     try {
-      await API.resetPassword(email);
+      await sendPasswordReset(email);
       showToast('Password reset email sent');
     } catch (err) {
-      showToast((err as Error).message || 'Could not send reset email');
+      showToast(friendlyAuthError(err));
     }
   };
+
+  // Signed into Firebase but unverified → hold here until they confirm.
+  if (needsEmailVerification) {
+    return <VerifyEmail email={email || currentUserEmail() || 'your email'} onVerified={refreshAuth} onSignOut={logout} />;
+  }
 
   return (
     <div className="auth-wrap">
@@ -142,6 +182,58 @@ export default function Auth() {
           </button>
         </div>
       </form>
+    </div>
+  );
+}
+
+function VerifyEmail({ email, onVerified, onSignOut }: { email: string; onVerified: () => Promise<void>; onSignOut: () => void }) {
+  const { showToast } = useToast();
+  const [busy, setBusy] = useState(false);
+
+  const check = async () => {
+    setBusy(true);
+    try {
+      const verified = await reloadCurrentUser();
+      if (verified) {
+        await onVerified();
+      } else {
+        showToast("Not verified yet — click the link in your email, then try again.");
+      }
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const resend = async () => {
+    try {
+      await sendVerificationEmail();
+      showToast('Verification email sent');
+    } catch (err) {
+      showToast((err as Error)?.message || 'Could not resend email');
+    }
+  };
+
+  return (
+    <div className="auth-wrap">
+      <div className="auth-card">
+        <div className="auth-brand">
+          <div className="auth-logo"><TomatoMark size={64} /></div>
+          <h1 className="serif">Check your email</h1>
+          <p>We sent a verification link to <strong>{email}</strong>. Click it to activate your account, then come back here.</p>
+        </div>
+
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 8 }}>
+          <button type="button" className="btn btn-primary btn-block" onClick={check} disabled={busy}>
+            {busy ? 'Checking…' : "I've verified my email"}
+          </button>
+          <button type="button" className="btn btn-outline btn-block" onClick={resend}>
+            Resend verification email
+          </button>
+          <button type="button" className="btn btn-ghost btn-sm" onClick={onSignOut}>
+            Use a different account
+          </button>
+        </div>
+      </div>
     </div>
   );
 }
