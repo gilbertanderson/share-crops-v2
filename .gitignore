@@ -17,3 +17,7 @@ api/index.js
 test-results
 playwright-report
 supabase/.temp
+
+# Firebase emulator logs
+*-debug.log
+firebase-debug.log

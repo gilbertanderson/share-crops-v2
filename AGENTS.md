@@ -39,14 +39,33 @@ Standard commands live in `package.json` and `README.md`; don't duplicate them.
   pass with dummy Firebase config. The `screenshots` specs have no assertions
   (they only capture images), so they "pass" trivially.
 
+### Local Firebase Auth without real credentials (Auth Emulator)
+Real signup/login can be exercised locally with the **Firebase Auth Emulator**
+— no Firebase project login or secrets required:
+- Start it: `npx -y firebase-tools@latest emulators:start --only auth --project demo-share-crops`
+  (Auth on `127.0.0.1:9099`, UI on `4000`; config lives in `firebase.json`
+  `emulators`). The Auth emulator is Node-based — no Java needed.
+- `src/lib/firebase.ts` connects to it only when
+  `VITE_FIREBASE_AUTH_EMULATOR_HOST` is set (already in `.env.local` as
+  `127.0.0.1:9099`); it is inert in production. Restart `vite` after changing
+  `.env.local`.
+- With the emulator running, all 3 `tests/auth-firebase.spec.ts` specs pass,
+  including the compliant-signup → "Check your email" flow that otherwise needs
+  real Firebase.
+- Drive it directly via the Identity Toolkit REST API, e.g.
+  `POST http://127.0.0.1:9099/identitytoolkit.googleapis.com/v1/accounts:signUp?key=<any>`
+  with `{email,password,returnSecureToken:true}`. Emulator-issued ID tokens have
+  `iss/aud = demo-share-crops` and `email_verified:false` for new email/password
+  users — which is why the app holds them at the verification screen.
+
 ### Testing
 - E2E: `npx playwright test` (Playwright auto-starts Vite on port 4321). Browser
   install: `npx playwright install chromium` (Chromium only; that's all the
   config uses).
-- Specs needing **real** Firebase + network (will fail without credentials):
-  `tests/auth-firebase.spec.ts` "signup with a compliant password…" actually
-  creates a real Firebase user and sends a verification email.
-- Full end-to-end marketplace flow (browse listings, offers, messaging) needs
-  real Firebase Auth + a Supabase project with `supabase/migrations/*.sql`
-  applied + the full server env. Without those secrets, only client-side flows
-  (login/signup UI, validation, route gating) can be exercised locally.
+- `tests/auth-firebase.spec.ts` "signup with a compliant password…" creates a
+  user via Firebase Auth — point it at the Auth Emulator (above) to run it
+  without real credentials/network.
+- Full end-to-end marketplace flow (browse listings, offers, messaging) still
+  needs the running Hono API + a Supabase project with
+  `supabase/migrations/*.sql` applied + the server env (`SUPABASE_*`,
+  `FIREBASE_SERVICE_ACCOUNT`, etc.). The Auth Emulator only covers auth.
