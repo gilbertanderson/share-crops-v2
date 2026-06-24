@@ -1,35 +1,7 @@
-import { projectId, publicAnonKey } from '@/config/info';
 import { getIdToken } from '@/lib/firebaseAuth';
 import type { User, Listing, Offer, Thread, Message, Rating, Community } from '@/types';
 
-// Primary backend: the Vercel-hosted Hono app (Node + Firebase Admin), because
-// it's the one that verifies the Firebase ID tokens the app sends. Set
-// VITE_FALLBACK_API_URL to e.g. https://<app>.vercel.app/api/make-server-dd877831.
-// The Supabase Edge Function trails as a last resort: it can't verify Firebase
-// tokens, so it only serves unauthenticated/public endpoints. (Failover only
-// kicks in on 5xx/429 — a 401 is a definitive answer and is returned as-is.)
-const VERCEL_BASE = (import.meta.env.VITE_FALLBACK_API_URL || '').replace(/\/$/, '');
-const SUPABASE_EDGE_BASE = `https://${projectId}.supabase.co/functions/v1/make-server-dd877831`;
-const BASES = [VERCEL_BASE, SUPABASE_EDGE_BASE].filter(Boolean);
-
-async function fetchWithFailover(endpoint: string, init: RequestInit): Promise<Response> {
-  let lastErr: unknown;
-  for (let i = 0; i < BASES.length; i++) {
-    const isLast = i === BASES.length - 1;
-    try {
-      const res = await fetch(`${BASES[i]}${endpoint}`, init);
-      // A server-side failure (5xx/429) on a non-final base → try the fallback.
-      // 4xx responses are legitimate answers and are returned as-is.
-      if (!isLast && (res.status >= 500 || res.status === 429)) continue;
-      return res;
-    } catch (e) {
-      // Network error / backend down → try the next base.
-      lastErr = e;
-      if (isLast) throw e;
-    }
-  }
-  throw lastErr instanceof Error ? lastErr : new Error('All backends unreachable');
-}
+const API_BASE = (import.meta.env.VITE_FALLBACK_API_URL || '/api/make-server-dd877831').replace(/\/$/, '');
 
 export class AuthManager {
   private static TOKEN_KEY = 'sharecrops_token';
@@ -82,13 +54,11 @@ export class API {
     options: RequestInit = {}
   ): Promise<T> {
     const token = await getIdToken();
-    const headers: HeadersInit = {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${token || publicAnonKey}`,
-      ...options.headers,
-    };
+    const headers = new Headers(options.headers);
+    if (!headers.has('Content-Type')) headers.set('Content-Type', 'application/json');
+    if (token) headers.set('Authorization', `Bearer ${token}`);
 
-    const response = await fetchWithFailover(endpoint, {
+    const response = await fetch(`${API_BASE}${endpoint}`, {
       ...options,
       headers,
     });
@@ -116,12 +86,12 @@ export class API {
     const token = await getIdToken();
     const formData = new FormData();
     formData.append('file', file);
+    const headers = new Headers();
+    if (token) headers.set('Authorization', `Bearer ${token}`);
 
-    const response = await fetchWithFailover(endpoint, {
+    const response = await fetch(`${API_BASE}${endpoint}`, {
       method: 'POST',
-      headers: {
-        Authorization: `Bearer ${token || publicAnonKey}`,
-      },
+      headers,
       body: formData,
     });
 

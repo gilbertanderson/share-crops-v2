@@ -1,10 +1,8 @@
-// Source for the Vercel Serverless Function. It runs the SAME shared Hono app
-// as the Supabase Edge Function, on Node, talking directly to Supabase. This is
-// the fallback backend the frontend fails over to.
+// Source for the Vercel Serverless Function. It runs the Node Hono API and
+// talks directly to Supabase Postgres/Storage.
 //
 // This file is NOT deployed directly: `scripts/build-api.mjs` esbuild-bundles it
-// (inlining the shared backend, which uses Deno-style `.ts` imports that Vercel's
-// own file tracer can't follow) into a single self-contained `api/index.js`.
+// into a single `api/index.js` that Vercel serves as the catch-all API function.
 //
 // Vercel's modern Node runtime uses the Web-standard function signature: it calls
 // exported per-method handlers (GET/POST/…) with a Web `Request` and expects a
@@ -15,16 +13,10 @@
 //
 // Vercel's filesystem catch-all only matches a single path segment for plain
 // (non-Next) projects, so a `vercel.json` rewrite funnels every `/api/*` depth to
-// this one function. The app is mounted under both `/api` and `/` so it matches
-// whether Vercel hands us the original path (/api/make-server-dd877831/*) or a
-// prefix-stripped one (/make-server-dd877831/*).
+// this one function. Mounting under both `/api` and `/` preserves the existing
+// route shape in either rewrite form.
 import { Hono } from 'hono';
-import { app, setTokenVerifier } from '../supabase/functions/_shared/app';
-import { verifyFirebaseToken } from './firebaseAdmin';
-
-// On Node/Vercel, verify bearer tokens as Firebase ID tokens (Admin SDK) instead
-// of the shared backend's default Supabase-JWT check. Set once at module load.
-setTokenVerifier(verifyFirebaseToken);
+import { app } from './app.ts';
 
 const root = new Hono();
 root.route('/api', app);

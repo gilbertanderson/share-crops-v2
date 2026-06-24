@@ -4,9 +4,9 @@ A mobile-first marketplace where neighbors in a local community list, trade, and
 give away homegrown produce. Members post crop listings, make offers, message
 each other, and rate completed trades.
 
-This is a rebuild of the original `shareCropsApp` at https://github.com/gilbertanderson/share-crops-app. It talks to the **same**
-deployed Supabase backend out of the box, so it runs against live data with no
-backend setup required.
+This is a rebuild of the original `shareCropsApp` at https://github.com/gilbertanderson/share-crops-app.
+The app uses Firebase Auth in the browser and one Hono/Node API backend for
+marketplace behavior. Supabase is used by the backend for Postgres and Storage.
 
 ## Highlights
 
@@ -17,20 +17,18 @@ backend setup required.
 - **Ratings** — rate the other party after a trade completes.
 - **Profiles & community setup** — onboarding flow that scopes a user to a
   community before they reach the app.
-- **Resilient backend** — the frontend calls Supabase Edge Functions first and
-  automatically fails over to a Vercel-hosted copy of the same backend on a 5xx
-  or network error.
+- **Portable backend** — one Hono API runs on Node, deployed to Vercel now and
+  structured so it can move to a container host later.
 
 ## Tech stack
 
 | Layer | Tech |
 |-------|------|
 | Frontend | React 18, React Router 7, TanStack Query, Vite 6, TypeScript |
-| Backend | [Hono](https://hono.dev) — one app running on two runtimes |
-| Primary runtime | Supabase Edge Functions (Deno) |
-| Fallback runtime | Vercel Serverless Functions (Node) |
-| Data | Supabase Postgres + KV table + Storage |
-| Auth | Supabase Auth (JWT) |
+| Backend | [Hono](https://hono.dev) on Node |
+| Runtime | Vercel Serverless Functions now; portable Node host/container later |
+| Data | Supabase Postgres + Storage |
+| Auth | Firebase Auth + Firebase Admin token verification |
 | E2E tests | Playwright |
 
 ## Project layout
@@ -42,15 +40,16 @@ src/
   components/     Layout, nav, cards, modals/sheets, atoms (Avatar, Icon, …)
   context/        AuthContext — auth state + setup gating
   hooks/          useMe and other data hooks
-  lib/            api.ts (client + failover), supabase.ts, security, helpers
-  config/         info.ts — Supabase project id + public anon key
+  lib/            api.ts (single backend client), firebaseAuth, helpers
 server/
-  entry.ts        Vercel Node entry — delegates to the shared Hono app
-supabase/functions/
-  _shared/        app.ts (the Hono backend), env, kv_store, security
-  make-server-dd877831/   Deno Edge Function wrapper + deno.json import map
+  app.ts          Hono routes and marketplace behavior
+  db.ts           Supabase Postgres data-access layer
+  entry.ts        Vercel Node entry
+  firebaseAdmin.ts Firebase ID-token verification
+supabase/migrations/
+                  Canonical database schema history
 scripts/build-api.mjs     esbuild bundler: server/entry.ts -> api/index.js
-tests/            Playwright specs (smoke, marketplace, screenshots, failover)
+tests/            Playwright specs (smoke, marketplace, screenshots)
 ```
 
 Routing (see [src/App.tsx](src/App.tsx)) gates the app in three stages:
@@ -73,8 +72,8 @@ cp .env.example .env.local   # fill in the values below
 npm run dev                  # Vite dev server on http://localhost:5173
 ```
 
-By default the app points at the same live Supabase backend as the original
-`shareCropsApp`, so it works immediately once the frontend env vars are set.
+The browser uses Firebase Auth and sends all marketplace requests to the Node
+API. Supabase is used by the server for Postgres and Storage.
 
 ### Environment variables
 
@@ -82,14 +81,12 @@ Frontend (`VITE_`-prefixed, safe for the browser bundle):
 
 | Var | Description |
 |-----|-------------|
-| `VITE_SUPABASE_PROJECT_ID` | Supabase project ref |
-| `VITE_SUPABASE_ANON_KEY` | Supabase public anon key (RLS-scoped, safe to expose) |
-| `VITE_FALLBACK_API_URL` | Vercel fallback base URL; leave blank to disable failover |
+| `VITE_FALLBACK_API_URL` | Optional API base override; leave blank for same-origin `/api/make-server-dd877831` |
 
 Server-only (no `VITE_` prefix — never shipped to the browser; set in your host's
-env for production). The Supabase Edge runtime injects `SUPABASE_URL` and keys
-automatically. See [.env.example](.env.example) and [DEPLOY.md](DEPLOY.md) for the
-full list including `SUPABASE_SERVICE_ROLE_KEY`, `ADMIN_EMAIL`, `CORS_ORIGINS`,
+env for production). See [.env.example](.env.example) and [DEPLOY.md](DEPLOY.md)
+for the full list including `FIREBASE_SERVICE_ACCOUNT`, `SUPABASE_URL`,
+`SUPABASE_SERVICE_ROLE_KEY`, `SUPABASE_ANON_KEY`, `ADMIN_EMAIL`, `CORS_ORIGINS`,
 and friends.
 
 > The service-role / secret key is **never** committed. Rotate immediately if leaked.
@@ -104,34 +101,30 @@ and friends.
 | `npm run test:e2e` | Run the Playwright e2e suite |
 | `npm run test:e2e:headed` | Run e2e tests in a headed browser |
 
-## Architecture: dual-runtime backend
+## Architecture: single Node backend
 
-The **same** Hono app ([supabase/functions/_shared/app.ts](supabase/functions/_shared/app.ts))
-runs on two runtimes against the same Supabase database:
+The browser sends Firebase ID tokens to the Node API. The API verifies them with
+Firebase Admin and owns all marketplace reads/writes against Supabase.
 
 ```
-            ┌──────────── Supabase (primary) ───────────┐
- frontend ──┤  Edge Function: make-server-dd877831       ├── Supabase DB
-   │  └─ on 5xx / network error, fail over ↓             │   (Postgres + KV
-   │        ┌──────────── Vercel (fallback) ─────────────┤    + Storage)
-   └────────┤  /api  →  same Hono app (Node)             ├───┘
-            └────────────────────────────────────────────┘
+PWA frontend
+  └─ Firebase Auth token
+      └─ /api/make-server-dd877831/*
+          └─ Hono/Node API
+              ├─ Firebase Admin token verification
+              ├─ Supabase Postgres
+              └─ Supabase Storage
 ```
 
-The frontend (`fetchWithFailover` in [src/lib/api.ts](src/lib/api.ts)) hits the
-Supabase Edge Function first and transparently falls over to the Vercel copy on
-failure. Because both runtimes share one database, the fallback stays useful even
-when the Edge runtime is down. `tests/failover.spec.ts` forces the primary to 5xx
-and asserts the app still loads via the fallback.
+Supabase Edge Functions are no longer an application runtime for this repo.
+Supabase remains the database/storage provider.
 
 ## Deployment
 
-Full deployment instructions — Supabase Edge Function (primary) and Vercel (SPA +
-fallback), required env vars, and the `scripts/build-api.mjs` bundling step — are
-in [DEPLOY.md](DEPLOY.md).
+Full deployment instructions are in [DEPLOY.md](DEPLOY.md).
 
 ## Testing
 
 Playwright drives the e2e suite in [tests/](tests/): `smoke`, `marketplace`,
-`screenshots`, and `failover`. Run with `npm run test:e2e`. Test artifacts
+and `screenshots`. Run with `npm run test:e2e`. Test artifacts
 (`test-results/`, `playwright-report/`) are gitignored.

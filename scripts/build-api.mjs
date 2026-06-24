@@ -1,11 +1,8 @@
-// Bundles the Vercel function into a single self-contained file.
+// Bundles the Vercel function into a single API file.
 //
-// The function entry (server/entry.ts) imports the shared Hono backend from
-// supabase/functions/_shared, which uses Deno-style `.ts`-extension imports and
-// `@ts-nocheck`. Vercel's Node builder (via @vercel/nft) can't trace those, so a
-// plain `api/index.ts` ships without its dependency and crashes with
-// ERR_MODULE_NOT_FOUND at runtime. esbuild resolves `.ts` imports natively and
-// inlines every local + npm dependency, leaving nothing to trace at runtime.
+// Vercel's Node builder (via @vercel/nft) does not trace this plain Vite
+// project's server tree reliably. esbuild resolves the local TypeScript imports
+// and inlines the app code before Vercel packages it.
 import { build } from 'esbuild';
 
 await build({
@@ -16,8 +13,8 @@ await build({
   format: 'esm',
   target: 'node20',
   // esbuild keeps Node built-ins (node:*, fs, etc.) external automatically on
-  // platform:node; everything else (hono, @supabase/supabase-js, shared code)
-  // is inlined so the deployed function has zero unresolved imports.
+  // platform:node; app code and ordinary npm dependencies are inlined so the
+  // deployed function has fewer runtime imports to trace.
   //
   // firebase-admin is the exception: it has native/gRPC deps and dynamic
   // requires that don't bundle cleanly. Leaving it external keeps the `import`

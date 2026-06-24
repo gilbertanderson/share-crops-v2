@@ -1,11 +1,12 @@
-// Node-only Firebase Admin token verifier for the Vercel function. It lives here
-// rather than in the shared backend (supabase/functions/_shared/app.ts) because
-// firebase-admin requires a Node runtime and can't run on the Deno edge function.
-// server/entry.ts wires this in via `setTokenVerifier`, so the shared routes
-// verify Firebase ID tokens without ever importing firebase-admin into Deno code.
+// Node-only Firebase Admin token verifier for the API backend.
 import { initializeApp, getApps, cert, applicationDefault } from 'firebase-admin/app';
 import { getAuth } from 'firebase-admin/auth';
-import type { AuthedUser } from '../supabase/functions/_shared/app';
+
+export type AuthedUser = {
+  id: string;
+  email: string | null;
+  user_metadata?: Record<string, any>;
+};
 
 // Lazily initialize the default app once. Credentials: prefer an inline
 // service-account JSON in FIREBASE_SERVICE_ACCOUNT; otherwise fall back to
@@ -18,10 +19,9 @@ function initAdmin(): void {
   });
 }
 
-// Verify a Firebase ID token and map it to the shared AuthedUser shape. Returns
-// null on any invalid/expired token (the caller logs it as an auth error, not a
-// crash). The user_metadata mirror lets the existing OAuth auto-provision path
-// (which reads full_name/name/avatar_url/picture) work unchanged.
+// Verify a Firebase ID token and map it to the app's authenticated-user shape.
+// Returns null on invalid/expired tokens. The user_metadata mirror lets the
+// existing OAuth auto-provision path work unchanged.
 //
 // Security gate: tokens whose email is not yet verified are rejected. This stops
 // someone from signing up with an email they don't control and immediately
