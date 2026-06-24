@@ -19,6 +19,26 @@
 create extension if not exists postgis;
 create extension if not exists pgcrypto;  -- gen_random_uuid()
 
+-- ── reconcile prior attempt ──────────────────────────────────────────────────
+-- An earlier (06-22) migration created these same tables WITHOUT the PostGIS
+-- location columns, the *_view aggregates, or the listings_near/complete_offer
+-- functions. All of them are empty (the live app still uses kv_store_dd877831),
+-- so drop & recreate to guarantee the schema below — no data is affected.
+-- Dependents first; CASCADE clears FKs, indexes, views, and functions.
+drop view     if exists profiles_view    cascade;
+drop view     if exists communities_view cascade;
+drop function if exists listings_near(double precision, double precision, double precision, uuid, integer) cascade;
+drop function if exists complete_offer(uuid, text) cascade;
+drop table    if exists ratings             cascade;
+drop table    if exists messages            cascade;
+drop table    if exists thread_participants cascade;
+drop table    if exists threads             cascade;
+drop table    if exists offers              cascade;
+drop table    if exists listings            cascade;
+drop table    if exists community_members   cascade;
+drop table    if exists communities         cascade;
+drop table    if exists profiles            cascade;
+
 -- ── profiles ────────────────────────────────────────────────────────────────
 -- Replaces KV `user:<id>`. active_community_id replaces `user:<id>:community`.
 create table if not exists profiles (
