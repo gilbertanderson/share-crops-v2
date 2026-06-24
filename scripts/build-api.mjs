@@ -13,14 +13,8 @@ await build({
   format: 'esm',
   target: 'node20',
   // esbuild keeps Node built-ins (node:*, fs, etc.) external automatically on
-  // platform:node; app code and ordinary npm dependencies are inlined so the
-  // deployed function has fewer runtime imports to trace.
-  //
-  // firebase-admin is the exception: it has native/gRPC deps and dynamic
-  // requires that don't bundle cleanly. Leaving it external keeps the `import`
-  // statements in the output, which Vercel's file tracer (@vercel/nft) follows
-  // to include the package from node_modules at deploy time.
-  external: ['firebase-admin', 'firebase-admin/*'],
+  // platform:node; app code and npm dependencies are inlined so the deployed
+  // function has no package-resolution edge cases at runtime.
   logLevel: 'info',
   // ESM bundles that reference CJS globals (some transitive deps do) need these
   // shimmed at the top of the output.
