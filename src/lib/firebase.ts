@@ -1,5 +1,5 @@
 import { initializeApp, getApps, getApp } from 'firebase/app';
-import { getAuth } from 'firebase/auth';
+import { getAuth, connectAuthEmulator } from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore';
 
 // Firebase web config. These values are NOT secret — the apiKey is a public
@@ -20,3 +20,11 @@ const firebaseConfig = {
 export const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
 export const auth = getAuth(app);
 export const db = getFirestore(app);
+
+// Local development against the Firebase Auth Emulator. Inert in production:
+// only connects when VITE_FIREBASE_AUTH_EMULATOR_HOST is set (e.g. in
+// .env.local). Lets sign-up/login run end-to-end without real credentials.
+const authEmulatorHost = import.meta.env.VITE_FIREBASE_AUTH_EMULATOR_HOST;
+if (authEmulatorHost) {
+  connectAuthEmulator(auth, `http://${authEmulatorHost}`, { disableWarnings: true });
+}
