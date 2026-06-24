@@ -3,8 +3,6 @@
 import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { logger } from "hono/logger";
-import * as kv from "./kv_store.ts";
-import * as listingsIndex from "./listings_index.ts";
 import * as db from "./db.ts";
 import * as security from "./security.ts";
 import { createClient } from "@supabase/supabase-js";
@@ -17,11 +15,6 @@ const ADMIN_EMAIL = (() => {
     throw new Error('ADMIN_EMAIL environment variable is required for admin role assignment');
   }
   return adminEmail.toLowerCase();
-})();
-
-const SEED_RATER_EMAIL = (() => {
-  const seedRaterEmail = getEnv('SEED_RATER_EMAIL');
-  return seedRaterEmail ? seedRaterEmail.toLowerCase() : null;
 })();
 
 const APP_ID = (() => {
@@ -145,346 +138,9 @@ const initStorage = async () => {
   }
 };
 
-// Initialize mock ratings data
-const initMockData = async () => {
-  try {
-    // Check if mock data already initialized
-    const mockDataFlag = await kv.get('mock_data:initialized');
-    if (mockDataFlag) {
-      console.log('Mock data already initialized');
-      return;
-    }
-
-    // Create mock sellers with ratings
-    const mockSellers = [
-      {
-        id: 'seller-mock-1',
-        email: 'seller@example.com',
-        name: 'John\'s Garden',
-        bio: 'Fresh organic vegetables from local garden',
-        rating: 4.5,
-        ratingCount: 8,
-        profilePhotoUrl: '',
-      },
-      {
-        id: 'seller-mock-2',
-        email: 'alice@example.com',
-        name: 'Alice\'s Farmers Market',
-        bio: 'Seasonal produce, always fresh',
-        rating: 4.8,
-        ratingCount: 12,
-        profilePhotoUrl: '',
-      },
-      {
-        id: 'seller-mock-3',
-        email: 'bob@example.com',
-        name: 'Bob\'s Community Farm',
-        bio: 'Supporting local agriculture',
-        rating: 4.2,
-        ratingCount: 5,
-        profilePhotoUrl: '',
-      },
-    ];
-
-    // Save mock sellers
-    for (const seller of mockSellers) {
-      const existingUser = await kv.get(`user:${seller.id}`);
-      if (!existingUser) {
-        await kv.set(`user:${seller.id}`, seller);
-        console.log(`Created mock seller: ${seller.name}`);
-      }
-    }
-
-    // Create mock community
-    const communityId = 'community-mock-1';
-    const existingCommunity = await kv.get(`community:id:${communityId}`);
-    if (!existingCommunity) {
-      const mockCommunity = {
-        id: communityId,
-        name: 'Demo Community',
-        zipCode: '12345',
-        createdBy: 'seller-mock-1',
-        memberCount: mockSellers.length,
-        createdAt: new Date(Date.now() - 60 * 24 * 60 * 60 * 1000).toISOString(),
-      };
-      await kv.set(`community:id:${communityId}`, mockCommunity);
-      await kv.set(`community:12345:Demo Community`, mockCommunity);
-      console.log('Created mock community');
-    }
-
-    // Create mock ratings for each seller
-    for (const seller of mockSellers) {
-      const ratingCount = seller.ratingCount;
-      for (let i = 0; i < ratingCount; i++) {
-        const ratingId = crypto.randomUUID();
-        const rating = seller.rating + (Math.random() * 0.5 - 0.25); // Slight variation
-        const mockRating = {
-          id: ratingId,
-          offerId: `offer-mock-${seller.id}-${i}`,
-          ratedUserId: seller.id,
-          raterUserId: `buyer-mock-${i}`,
-          rating: Math.round(Math.max(1, Math.min(5, rating)) * 2) / 2, // Round to 0.5
-          comment: [
-            'Great exchange! Highly recommend.',
-            'Fresh produce, very reliable seller.',
-            'Perfect quality and communication.',
-            'Will definitely buy again.',
-            'Best seller in our community.',
-            'Amazing vegetables and fair pricing.',
-            'Professional and trustworthy.',
-            'Excellent service and quality.',
-            'Consistently great products.',
-            'Happy with every transaction.',
-            'Highly satisfied with the produce.',
-            'Wonderful community member.',
-          ][i % 12],
-          createdAt: new Date(Date.now() - Math.random() * 30 * 24 * 60 * 60 * 1000).toISOString(),
-        };
-
-        // Only store if not already exists
-        const existingRating = await kv.get(`rating:user:${seller.id}:${ratingId}`);
-        if (!existingRating) {
-          await kv.set(`rating:${ratingId}`, mockRating);
-          await kv.set(`rating:user:${seller.id}:${ratingId}`, mockRating);
-        }
-      }
-    }
-
-    // Create mock listings for sellers
-    const mockListings = [
-      {
-        title: 'Fresh Tomatoes',
-        description: 'Ripe red tomatoes picked fresh from the garden',
-        quantity: '5 lbs',
-        sellerId: 'seller-mock-1',
-        communityId: 'community-mock-1',
-      },
-      {
-        title: 'Organic Lettuce',
-        description: 'Crisp organic lettuce, perfect for salads',
-        quantity: '2 bunches',
-        sellerId: 'seller-mock-2',
-        communityId: 'community-mock-1',
-      },
-      {
-        title: 'Homegrown Peppers',
-        description: 'Assorted sweet and hot peppers',
-        quantity: '1 dozen',
-        sellerId: 'seller-mock-3',
-        communityId: 'community-mock-1',
-      },
-      {
-        title: 'Fresh Basil',
-        description: 'Fragrant fresh basil for cooking',
-        quantity: '1 bunch',
-        sellerId: 'seller-mock-1',
-        communityId: 'community-mock-1',
-      },
-      {
-        title: 'Zucchini',
-        description: 'Green zucchini, great for grilling',
-        quantity: '3 medium',
-        sellerId: 'seller-mock-2',
-        communityId: 'community-mock-1',
-      },
-    ];
-
-    for (const listingData of mockListings) {
-      const listingId = `listing-mock-${crypto.randomUUID().substring(0, 8)}`;
-      const existingListing = await kv.get(`listing:${listingId}`);
-      
-      if (!existingListing) {
-        const mockListing = {
-          id: listingId,
-          title: listingData.title,
-          description: listingData.description,
-          quantity: listingData.quantity,
-          sellerId: listingData.sellerId,
-          communityId: listingData.communityId,
-          status: 'active',
-          photos: [],
-          lookingFor: 'Open to reasonable offers',
-          expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
-          createdAt: new Date(Date.now() - Math.random() * 14 * 24 * 60 * 60 * 1000).toISOString(),
-          seller: mockSellers.find(s => s.id === listingData.sellerId),
-          zipCode: '12345',
-        };
-
-        await kv.set(`listing:${listingId}`, mockListing);
-        await kv.set(`listing:community:${listingData.communityId}:${listingId}`, mockListing);
-        console.log(`Created mock listing: ${mockListing.title}`);
-      }
-    }
-
-    // Mark mock data as initialized
-    await kv.set('mock_data:initialized', { timestamp: new Date().toISOString() });
-    console.log('Mock rating data initialized successfully');
-  } catch (error) {
-    console.error('Failed to initialize mock data:', error);
-  }
-};
-
-// Ensure tempUser has visible listing rankings seeded by another user.
-const seedTempUserRatings = async () => {
-  try {
-    const targetEmails = ['tempUser@share-crops.com', 'userTemp@share-crops.com'];
-    const raterEmail = SEED_RATER_EMAIL;
-    if (!raterEmail) {
-      console.log('SEED_RATER_EMAIL not configured; skipping tempUser rating seed');
-      return;
-    }
-    const userIds = await findAuthUserIdsByEmails([...targetEmails, raterEmail]);
-    const tempUserId = targetEmails
-      .map((email) => userIds[email.toLowerCase()])
-      .find((id) => !!id) ?? null;
-    let raterUserId = userIds[raterEmail.toLowerCase()] ?? null;
-
-    if (!tempUserId) {
-      console.log('tempUser not found; skipping tempUser rating seed');
-      return;
-    }
-
-    // If the requested rater account does not exist yet, keep deterministic seed data.
-    if (!raterUserId) {
-      raterUserId = 'seed-rater-gilbert';
-    }
-
-    const seedRatings = [
-      { rating: 5, comment: 'Great quality produce and very responsive.' },
-      { rating: 4, comment: 'Smooth exchange and exactly as described.' },
-      { rating: 5, comment: 'Excellent local grower. Would trade again.' },
-    ];
-
-    for (let i = 0; i < seedRatings.length; i++) {
-      const ratingId = `seed-tempuser-${tempUserId}-${i + 1}`;
-      const offerId = `seed-offer-tempuser-${i + 1}`;
-      const createdAt = new Date(Date.now() - (i + 1) * 24 * 60 * 60 * 1000).toISOString();
-      const seededRating = {
-        id: ratingId,
-        offerId,
-        ratedUserId: tempUserId,
-        raterUserId,
-        rating: seedRatings[i].rating,
-        comment: seedRatings[i].comment,
-        createdAt,
-      };
-
-      // Deterministic IDs keep this seed idempotent across restarts.
-      await kv.set(`rating:${ratingId}`, seededRating);
-      await kv.set(`rating:${offerId}:${raterUserId}`, seededRating);
-      await kv.set(`rating:user:${tempUserId}:${ratingId}`, seededRating);
-    }
-
-    // Recompute and persist aggregate score for profile/listing badges.
-    const allRatings = await kv.getByPrefix(`rating:user:${tempUserId}:`);
-    const count = allRatings.length;
-    const avg = count
-      ? allRatings.reduce((sum: number, r: any) => sum + (Number(r.rating) || 0), 0) / count
-      : 0;
-
-    const tempProfile = await kv.get(`user:${tempUserId}`);
-    if (tempProfile) {
-      tempProfile.rating = Math.round(avg * 10) / 10;
-      tempProfile.ratingCount = count;
-      await kv.set(`user:${tempUserId}`, tempProfile);
-    }
-
-    console.log(`Seeded tempUser ratings: ${count} total (avg ${Math.round(avg * 10) / 10})`);
-  } catch (error) {
-    console.error('Failed to seed tempUser ratings:', error);
-  }
-};
-
-// Seed offers on tempUser's listings so they appear in community rankings.
-const seedTempUserListingOffers = async () => {
-  try {
-    const targetEmails = ['tempUser@share-crops.com', 'userTemp@share-crops.com'];
-    const raterEmail = SEED_RATER_EMAIL;
-    if (!raterEmail) {
-      console.log('SEED_RATER_EMAIL not configured; skipping listing offer seed');
-      return;
-    }
-    const userIds = await findAuthUserIdsByEmails([...targetEmails, raterEmail]);
-    const tempUserId = targetEmails
-      .map((email) => userIds[email.toLowerCase()])
-      .find((id) => !!id) ?? null;
-    let raterUserId = userIds[raterEmail.toLowerCase()] ?? null;
-
-    if (!tempUserId) {
-      console.log('tempUser not found; skipping listing offer seed');
-      return;
-    }
-    if (!raterUserId) raterUserId = 'seed-buyer-gilbert';
-
-    // Find all active listings owned by tempUser
-    const allListings = await kv.getByPrefix('listing:community:');
-    const tempUserListings = allListings.filter(
-      (l: any) => l && typeof l === 'object' && l.sellerId === tempUserId && l.status === 'active'
-    );
-
-    if (!tempUserListings.length) {
-      console.log('No tempUser listings found; skipping listing offer seed');
-      return;
-    }
-
-    // Seed buyers to distribute offers across multiple "users" for realistic rankings
-    const seedBuyers = [
-      raterUserId,
-      'seed-buyer-neighbor-1',
-      'seed-buyer-neighbor-2',
-      'seed-buyer-neighbor-3',
-    ];
-
-    const seedOfferedProduce = [
-      '1 dozen eggs',
-      'fresh herbs bundle',
-      '3 lbs carrots',
-      '2 lbs cherry tomatoes',
-    ];
-
-    let seededCount = 0;
-    for (let li = 0; li < tempUserListings.length; li++) {
-      const listing = tempUserListings[li];
-      // Give each listing a varying number of offers so ranks differ (2–4 offers each)
-      const offerCount = 2 + (li % 3);
-      for (let oi = 0; oi < offerCount; oi++) {
-        const buyerId = seedBuyers[oi % seedBuyers.length];
-        // Deterministic offer ID so this is idempotent across restarts
-        const offerId = `seed-offer-rank-${listing.id}-${oi}`;
-        const existing = await kv.get(`offer:${offerId}`);
-        if (existing) continue;
-
-        const offer = {
-          id: offerId,
-          listingId: listing.id,
-          buyerId,
-          sellerId: tempUserId,
-          offeredProduce: seedOfferedProduce[oi % seedOfferedProduce.length],
-          message: 'Interested in a trade!',
-          status: 'pending',
-          createdAt: new Date(Date.now() - (li * 12 + oi * 3) * 60 * 60 * 1000).toISOString(),
-        };
-
-        await kv.set(`offer:${offerId}`, offer);
-        await kv.set(`offer:listing:${listing.id}:${offerId}`, offer);
-        await kv.set(`offer:buyer:${buyerId}:${offerId}`, offer);
-        await kv.set(`offer:seller:${tempUserId}:${offerId}`, offer);
-        seededCount++;
-      }
-    }
-
-    console.log(`Seeded ${seededCount} ranking offers across ${tempUserListings.length} tempUser listings`);
-  } catch (error) {
-    console.error('Failed to seed tempUser listing offers:', error);
-  }
-};
-
 // Initialize on startup
 if (getEnv("SKIP_INIT") !== "true") {
   initStorage();
-  initMockData();
-  seedTempUserRatings();
-  seedTempUserListingOffers();
 }
 
 // Pluggable bearer-token verifier. Returns a minimal authed-user shape or null.
@@ -571,98 +227,20 @@ const normalizeUserRole = (role: unknown): 'admin' | 'general' => {
 };
 
 const getUserRole = async (userId: string): Promise<'admin' | 'general'> => {
-  const profile = await kv.get(`user:${userId}`);
+  const profile = await db.getProfile(userId);
   return normalizeUserRole(profile?.role);
-};
-
-// Maintain admin index for efficient lookups
-const setAdminIndex = async (userId: string, isAdmin: boolean) => {
-  const indexKey = `role:admin:${userId}`;
-  if (isAdmin) {
-    await kv.set(indexKey, { userId, setAt: new Date().toISOString() });
-  } else {
-    await kv.del(indexKey);
-  }
 };
 
 const MAX_LISTING_EXPIRATION_DAYS = 30;
 
-const getCommunityMembershipKey = (userId: string, communityId: string) =>
-  `user:${userId}:community_member:${communityId}`;
-
-const addMembership = async (userId: string, communityId: string) => {
-  await kv.set(getCommunityMembershipKey(userId, communityId), {
-    userId,
-    communityId,
-    joinedAt: new Date().toISOString(),
-  });
-};
-
-const getMembershipCommunityIds = async (userId: string): Promise<string[]> => {
-  const memberships = await kv.getByPrefix(`user:${userId}:community_member:`);
-  if (!Array.isArray(memberships)) return [];
-
-  const ids = memberships
-    .map((m: any) => m?.communityId)
-    .filter((id: any) => typeof id === 'string');
-
-  return [...new Set(ids)];
-};
-
-const getMembershipCommunities = async (userId: string): Promise<any[]> => {
-  const communityIds = await getMembershipCommunityIds(userId);
-  const communities: any[] = [];
-
-  for (const id of communityIds) {
-    const community = await kv.get(`community:id:${id}`);
-    if (community) {
-      communities.push(community);
-    }
-  }
-
-  return communities;
-};
-
-// Sync memberCount for a community by counting actual members
-const syncCommunityMemberCount = async (communityId: string): Promise<number> => {
-  const members = await kv.getByPrefix(`community:member:${communityId}:`);
-  const actualCount = Array.isArray(members) ? members.length : 0;
-
-  const community = await kv.get(`community:id:${communityId}`);
-  if (community) {
-    community.memberCount = actualCount;
-    await kv.set(`community:id:${communityId}`, community);
-    await kv.set(`community:${community.zipCode}:${community.name.toLowerCase().trim()}`, community);
-  }
-
-  return actualCount;
-};
-
-const findAuthUserIdsByEmails = async (emails: string[]): Promise<Record<string, string | null>> => {
-  const targets = new Map(emails.map((email) => [email.toLowerCase(), null as string | null]));
-  const supabase = getServiceRoleClient();
-
-  for (let page = 1; page <= 10; page++) {
-    const { data, error } = await supabase.auth.admin.listUsers({ page, perPage: 100 });
-    if (error) {
-      console.error('Failed to list auth users for email lookup:', error);
-      break;
-    }
-
-    const users = data?.users ?? [];
-    if (!users.length) break;
-
-    for (const authUser of users) {
-      const email = authUser.email?.toLowerCase();
-      if (email && targets.has(email) && !targets.get(email)) {
-        targets.set(email, authUser.id);
-      }
-    }
-
-    if ([...targets.values()].every(Boolean)) break;
-  }
-
-  return Object.fromEntries(targets);
+// When a user loses their active community (left / removed / cleared), fall back
+// to any remaining membership, else clear it. memberCount is a view now, so
+// there's nothing to recount — leaving/joining is a single membership row.
+const reassignActiveCommunity = async (userId: string, removedCommunityId: string) => {
+  const activeCommunityId = await db.getActiveCommunityId(userId);
+  if (activeCommunityId !== removedCommunityId) return;
+  const remaining = await db.getMembershipCommunityIds(userId);
+  await db.setActiveCommunityId(userId, remaining[0] ?? null);
 };
 
 const isListingExpired = (listing: any): boolean => {
@@ -749,18 +327,16 @@ app.post("/make-server-dd877831/auth/signup", async (c) => {
       return c.json({ error: error.message }, 400);
     }
 
-    // Sanitize user data before storing
-    await kv.set(`user:${data.user.id}`, {
+    // Sanitize user data before storing. rating/ratingCount are computed by
+    // profiles_view, so they're not columns here.
+    await db.upsertProfile({
       id: data.user.id,
       email: security.sanitizeString(email),
       name: security.sanitizeString(name),
       bio: '',
       socialUrl: '',
       profilePhotoUrl: '',
-      rating: 0,
-      ratingCount: 0,
       role: email.toLowerCase() === ADMIN_EMAIL ? 'admin' : 'general',
-      createdAt: new Date().toISOString(),
     });
 
     security.logSecurityEvent('user_signup', 'low', { userId: data.user.id });
@@ -883,7 +459,7 @@ app.get("/make-server-dd877831/auth/me", async (c) => {
     return c.json({ error: "Unauthorized" }, 401);
   }
 
-  let profile = await kv.get(`user:${user.id}`);
+  let profile = await db.getProfile(user.id);
 
   // Auto-provision a profile for users created outside the email/password
   // signup flow (e.g. Google OAuth), who have a valid Supabase identity but no
@@ -891,26 +467,16 @@ app.get("/make-server-dd877831/auth/me", async (c) => {
   if (!profile) {
     const meta = user.user_metadata || {};
     const rawName = meta.full_name || meta.name || user.email.split('@')[0];
-    profile = {
+    profile = await db.upsertProfile({
       id: user.id,
       email: security.sanitizeString(user.email),
       name: security.sanitizeString(String(rawName)),
       bio: '',
       socialUrl: '',
       profilePhotoUrl: meta.avatar_url || meta.picture || '',
-      rating: 0,
-      ratingCount: 0,
       role: user.email.toLowerCase() === ADMIN_EMAIL ? 'admin' : 'general',
-      createdAt: new Date().toISOString(),
-    };
-    await kv.set(`user:${user.id}`, profile);
+    });
     security.logSecurityEvent('oauth_user_provisioned', 'low', { userId: user.id });
-  }
-
-  // Backfill role for accounts created before roles were introduced
-  if (profile && profile.role === undefined) {
-    profile.role = profile.email?.toLowerCase() === ADMIN_EMAIL ? 'admin' : 'general';
-    await kv.set(`user:${user.id}`, profile);
   }
 
   return c.json({ user: profile });
@@ -929,33 +495,23 @@ app.post("/make-server-dd877831/communities", async (c) => {
       return c.json({ error: "Name and zip code are required" }, 400);
     }
 
-    // Normalize for duplicate check
-    const normalizedName = name.toLowerCase().trim();
-    const normalizedZip = zipCode.trim();
-    const communityKey = `community:${normalizedZip}:${normalizedName}`;
-
-    // Check for duplicate
-    const existing = await kv.get(communityKey);
-    if (existing) {
-      return c.json({ error: "A community with this name already exists in this zip code", duplicate: true }, 409);
+    // Dedup is enforced by communities_zip_lname_uidx (zip + lower(name)).
+    let community;
+    try {
+      community = await db.createCommunity({ name, zipCode: zipCode.trim(), createdBy: user.id });
+    } catch (e) {
+      if (e instanceof db.DuplicateCommunityError) {
+        return c.json({ error: "A community with this name already exists in this zip code", duplicate: true }, 409);
+      }
+      throw e;
     }
 
-    const communityId = crypto.randomUUID();
-    const community = {
-      id: communityId,
-      name,
-      zipCode,
-      createdBy: user.id,
-      memberCount: 1,
-      createdAt: new Date().toISOString(),
-    };
+    // Creator joins and makes it active. (The KV version forgot to add the
+    // creator to the member index — fixed here.)
+    await db.addMembership(user.id, community.id);
+    await db.setActiveCommunityId(user.id, community.id);
 
-    await kv.set(communityKey, community);
-    await kv.set(`community:id:${communityId}`, community);
-    await kv.set(`user:${user.id}:community`, communityId);
-    await addMembership(user.id, communityId);
-
-    return c.json({ success: true, community });
+    return c.json({ success: true, community: { ...community, memberCount: 1 } });
   } catch (error) {
     console.error("Create community error:", error);
     return c.json({ error: "Failed to create community" }, 500);
@@ -973,27 +529,23 @@ app.post("/make-server-dd877831/communities/join", async (c) => {
       return c.json({ error: "Community ID is required" }, 400);
     }
 
-    const community = await kv.get(`community:id:${communityId}`);
+    const community = await db.getCommunity(communityId);
     if (!community) {
       return c.json({ error: "Community not found" }, 404);
     }
 
-    const existingMembership = await kv.get(getCommunityMembershipKey(user.id, communityId));
+    const alreadyMember = await db.isMember(user.id, communityId);
 
-    // Already a member: make this active community and return success.
-    if (existingMembership) {
-      await kv.set(`user:${user.id}:community`, communityId);
+    // addMembership is idempotent; set active either way. memberCount comes
+    // from the view, so re-reading reflects the new member with no recount.
+    await db.addMembership(user.id, communityId);
+    await db.setActiveCommunityId(user.id, communityId);
+
+    if (alreadyMember) {
       return c.json({ success: true, community, alreadyMember: true });
     }
 
-    await kv.set(`user:${user.id}:community`, communityId);
-    await addMembership(user.id, communityId);
-    await kv.set(`community:member:${communityId}:${user.id}`, { userId: user.id, communityId, joinedAt: new Date().toISOString() });
-
-    // Sync member count to ensure accuracy
-    await syncCommunityMemberCount(communityId);
-    const updatedCommunity = await kv.get(`community:id:${communityId}`);
-
+    const updatedCommunity = await db.getCommunity(communityId);
     return c.json({ success: true, community: updatedCommunity });
   } catch (error) {
     console.error("Join community error:", error);
@@ -1008,15 +560,7 @@ app.get("/make-server-dd877831/communities/search", async (c) => {
       return c.json({ error: "Zip code is required" }, 400);
     }
 
-    const normalizedZip = zipCode.trim();
-    const raw = await kv.getByPrefix(`community:${normalizedZip}:`);
-
-    // Only return communities whose stored zipCode matches the searched zip.
-    // Guards against stale index entries or data written under unexpected keys.
-    const communities = raw.filter(
-      (entry: any) => entry && typeof entry === 'object' && entry.zipCode?.trim() === normalizedZip
-    );
-
+    const communities = await db.searchCommunitiesByZip(zipCode.trim());
     return c.json({ communities });
   } catch (error) {
     console.error("Search communities error:", error);
@@ -1029,13 +573,13 @@ app.get("/make-server-dd877831/communities/my", async (c) => {
   if (!user) return c.json({ error: "Unauthorized" }, 401);
 
   try {
-    let communityId = await kv.get(`user:${user.id}:community`);
+    let communityId = await db.getActiveCommunityId(user.id);
 
     if (!communityId) {
-      const communityIds = await getMembershipCommunityIds(user.id);
+      const communityIds = await db.getMembershipCommunityIds(user.id);
       if (communityIds.length > 0) {
         communityId = communityIds[0];
-        await kv.set(`user:${user.id}:community`, communityId);
+        await db.setActiveCommunityId(user.id, communityId);
       }
     }
 
@@ -1043,10 +587,10 @@ app.get("/make-server-dd877831/communities/my", async (c) => {
       return c.json({ community: null });
     }
 
-    const community = await kv.get(`community:id:${communityId}`);
+    const community = await db.getCommunity(communityId);
 
     if (!community) {
-      await kv.del(`user:${user.id}:community`);
+      await db.setActiveCommunityId(user.id, null);
       return c.json({ community: null });
     }
 
@@ -1062,8 +606,8 @@ app.get("/make-server-dd877831/communities/mine", async (c) => {
   if (!user) return c.json({ error: "Unauthorized" }, 401);
 
   try {
-    const communities = await getMembershipCommunities(user.id);
-    const activeCommunityId = await kv.get(`user:${user.id}:community`);
+    const communities = await db.getMemberCommunities(user.id);
+    const activeCommunityId = await db.getActiveCommunityId(user.id);
     return c.json({ communities, activeCommunityId });
   } catch (error) {
     console.error("Get my communities error:", error);
@@ -1082,17 +626,17 @@ app.post("/make-server-dd877831/communities/active", async (c) => {
       return c.json({ error: "Community ID is required" }, 400);
     }
 
-    const membership = await kv.get(getCommunityMembershipKey(user.id, communityId));
+    const membership = await db.isMember(user.id, communityId);
     if (!membership) {
       return c.json({ error: "You are not a member of this community" }, 403);
     }
 
-    const community = await kv.get(`community:id:${communityId}`);
+    const community = await db.getCommunity(communityId);
     if (!community) {
       return c.json({ error: "Community not found" }, 404);
     }
 
-    await kv.set(`user:${user.id}:community`, communityId);
+    await db.setActiveCommunityId(user.id, communityId);
     return c.json({ success: true, community });
   } catch (error) {
     console.error("Set active community error:", error);
@@ -1106,32 +650,14 @@ app.delete("/make-server-dd877831/communities/mine/:communityId", async (c) => {
 
   try {
     const communityId = c.req.param('communityId');
-    const membershipKey = getCommunityMembershipKey(user.id, communityId);
-    const membership = await kv.get(membershipKey);
 
-    if (!membership) {
+    if (!(await db.isMember(user.id, communityId))) {
       return c.json({ error: "You are not a member of this community" }, 404);
     }
 
-    const community = await kv.get(`community:id:${communityId}`);
-    if (community) {
-      community.memberCount = Math.max((community.memberCount || 1) - 1, 0);
-      await kv.set(`community:id:${communityId}`, community);
-      await kv.set(`community:${community.zipCode}:${community.name.toLowerCase().trim()}`, community);
-    }
-
-    await kv.del(membershipKey);
-    await kv.del(`community:member:${communityId}:${user.id}`);
-
-    const activeCommunityId = await kv.get(`user:${user.id}:community`);
-    if (activeCommunityId === communityId) {
-      const remainingIds = await getMembershipCommunityIds(user.id);
-      if (remainingIds.length > 0) {
-        await kv.set(`user:${user.id}:community`, remainingIds[0]);
-      } else {
-        await kv.del(`user:${user.id}:community`);
-      }
-    }
+    // One row deleted; memberCount drops automatically (it's a view).
+    await db.removeMembership(user.id, communityId);
+    await reassignActiveCommunity(user.id, communityId);
 
     return c.json({ success: true });
   } catch (error) {
@@ -1147,21 +673,11 @@ app.get("/make-server-dd877831/communities/:communityId/members/preview", async 
   try {
     const communityId = c.req.param('communityId');
 
-    // Use consistent getByPrefix pattern from full members endpoint
-    const memberEntries = await kv.getByPrefix(`community:member:${communityId}:`);
+    // Up to 12 members, profiles joined in one round trip.
+    const full = await db.listCommunityMembers(communityId, 12);
+    const members = full.map((m: any) => ({ id: m.id, name: m.name, profilePhotoUrl: m.profilePhotoUrl ?? null }));
 
-    // Limit to 12 members for preview
-    const previewEntries = memberEntries.slice(0, 12);
-
-    // Batch fetch profiles
-    const members = await Promise.all(
-      previewEntries.map(async (entry: any) => {
-        const profile = await kv.get(`user:${entry.userId}`);
-        return profile ? { id: entry.userId, name: profile.name, profilePhotoUrl: profile.profilePhotoUrl ?? null } : null;
-      })
-    );
-
-    return c.json({ members: members.filter(Boolean) });
+    return c.json({ members });
   } catch (error) {
     console.error("Get community members preview error:", error);
     return c.json({ error: "Failed to get members" }, 500);
@@ -1177,14 +693,8 @@ app.get("/make-server-dd877831/communities/:communityId/members", async (c) => {
 
   try {
     const communityId = c.req.param('communityId');
-    const memberEntries = await kv.getByPrefix(`community:member:${communityId}:`);
-    const members = await Promise.all(
-      memberEntries.map(async (entry: any) => {
-        const profile = await kv.get(`user:${entry.userId}`);
-        return profile ? { ...profile, joinedAt: entry.joinedAt } : null;
-      })
-    );
-    return c.json({ members: members.filter(Boolean) });
+    const members = await db.listCommunityMembers(communityId);
+    return c.json({ members });
   } catch (error) {
     console.error("Get community members error:", error);
     return c.json({ error: "Failed to get members" }, 500);
@@ -1202,25 +712,12 @@ app.delete("/make-server-dd877831/communities/:communityId/members/:userId", asy
     const communityId = c.req.param('communityId');
     const targetUserId = c.req.param('userId');
 
-    const membershipKey = getCommunityMembershipKey(targetUserId, communityId);
-    const membership = await kv.get(membershipKey);
-    if (!membership) return c.json({ error: "User is not a member of this community" }, 404);
-
-    await kv.del(membershipKey);
-    await kv.del(`community:member:${communityId}:${targetUserId}`);
-
-    // Sync member count to ensure accuracy
-    await syncCommunityMemberCount(communityId);
-
-    const activeCommunityId = await kv.get(`user:${targetUserId}:community`);
-    if (activeCommunityId === communityId) {
-      const remainingIds = await getMembershipCommunityIds(targetUserId);
-      if (remainingIds.length > 0) {
-        await kv.set(`user:${targetUserId}:community`, remainingIds[0]);
-      } else {
-        await kv.del(`user:${targetUserId}:community`);
-      }
+    if (!(await db.isMember(targetUserId, communityId))) {
+      return c.json({ error: "User is not a member of this community" }, 404);
     }
+
+    await db.removeMembership(targetUserId, communityId);
+    await reassignActiveCommunity(targetUserId, communityId);
 
     return c.json({ success: true });
   } catch (error) {
@@ -1237,8 +734,8 @@ app.get("/make-server-dd877831/communities/all", async (c) => {
   if (role !== 'admin') return c.json({ error: "Forbidden" }, 403);
 
   try {
-    const allCommunities = await kv.getByPrefix('community:id:');
-    return c.json({ communities: allCommunities.filter(Boolean) });
+    const communities = await db.getAllCommunities();
+    return c.json({ communities });
   } catch (error) {
     console.error("Get all communities error:", error);
     return c.json({ error: "Failed to get communities" }, 500);
@@ -1260,30 +757,14 @@ app.post("/make-server-dd877831/admin/communities/:communityId/clear-members", a
 
     const communityId = c.req.param('communityId');
 
-    // Get all reverse-index member records for this community
-    const memberEntries = await kv.getByPrefix(`community:member:${communityId}:`);
-    let removed = 0;
-
-    for (const entry of memberEntries) {
-      if (!entry?.userId) continue;
-      const userId = entry.userId;
-
-      // Remove both index directions
-      await kv.del(`community:member:${communityId}:${userId}`);
-      await kv.del(getCommunityMembershipKey(userId, communityId));
-
-      // If this was the user's active community, clear it
-      const activeCommunityId = await kv.get(`user:${userId}:community`);
-      if (activeCommunityId === communityId) {
-        await kv.del(`user:${userId}:community`);
-      }
-      removed++;
+    // One delete clears the roster and returns the affected users; reassign the
+    // active community for any who had this one selected.
+    const removedUserIds = await db.clearCommunityMembers(communityId);
+    for (const userId of removedUserIds) {
+      await reassignActiveCommunity(userId, communityId);
     }
 
-    // Sync member count to ensure accuracy (should be 0 after clearing)
-    await syncCommunityMemberCount(communityId);
-
-    return c.json({ success: true, removed });
+    return c.json({ success: true, removed: removedUserIds.length });
   } catch (error) {
     console.error("Clear members error:", error);
     return c.json({ error: "Failed to clear members" }, 500);
@@ -1547,7 +1028,7 @@ app.post("/make-server-dd877831/offers", async (c) => {
       return c.json({ error: "You must specify what you're offering" }, 400);
     }
 
-    const listing = await kv.get(`listing:${listingId}`);
+    const listing = await db.getListing(listingId);
     if (!listing) {
       return c.json({ error: "Listing not found" }, 404);
     }
@@ -1556,20 +1037,8 @@ app.post("/make-server-dd877831/offers", async (c) => {
       return c.json({ error: "You cannot make an offer on your own listing" }, 400);
     }
 
-    // Check for duplicate offer: same listing + buyer + offered_produce
-    const buyerOffers = await kv.getByPrefix(`offer:buyer:${user.id}:`);
-    const duplicate = buyerOffers.find((offer: any) =>
-      offer.listingId === listingId &&
-      offer.offeredProduce === offeredProduce &&
-      offer.status !== 'declined' // Allow re-offering after declining
-    );
-    if (duplicate) {
-      return c.json({ error: "You already have an offer for this produce on this listing. Delete your existing offer to submit a new one." }, 400);
-    }
-
-    const offerId = crypto.randomUUID();
     const offer = {
-      id: offerId,
+      id: crypto.randomUUID(),
       listingId,
       buyerId: user.id,
       sellerId: listing.sellerId,
@@ -1579,12 +1048,19 @@ app.post("/make-server-dd877831/offers", async (c) => {
       createdAt: new Date().toISOString(),
     };
 
-    await kv.set(`offer:${offerId}`, offer);
-    await kv.set(`offer:listing:${listingId}:${offerId}`, offer);
-    await kv.set(`offer:buyer:${user.id}:${offerId}`, offer);
-    await kv.set(`offer:seller:${listing.sellerId}:${offerId}`, offer);
+    // The offers_live_dedupe_uidx partial-unique index rejects a second live
+    // (listing, buyer, produce) offer race-free — no buyer-offers scan needed.
+    let created;
+    try {
+      created = await db.insertOffer(offer);
+    } catch (e) {
+      if (e instanceof db.DuplicateOfferError) {
+        return c.json({ error: "You already have an offer for this produce on this listing. Delete your existing offer to submit a new one." }, 400);
+      }
+      throw e;
+    }
 
-    return c.json({ success: true, offer });
+    return c.json({ success: true, offer: created });
   } catch (error) {
     console.error("Create offer error:", error);
     return c.json({ error: "Failed to create offer" }, 500);
@@ -1597,7 +1073,7 @@ app.post("/make-server-dd877831/offers/:id/accept", async (c) => {
 
   try {
     const offerId = c.req.param('id');
-    const offer = await kv.get(`offer:${offerId}`);
+    const offer = await db.getOffer(offerId);
 
     if (!offer) {
       return c.json({ error: "Offer not found" }, 404);
@@ -1607,15 +1083,8 @@ app.post("/make-server-dd877831/offers/:id/accept", async (c) => {
       return c.json({ error: "Only the seller can accept offers" }, 403);
     }
 
-    offer.status = 'accepted';
-    offer.acceptedAt = new Date().toISOString();
-
-    await kv.set(`offer:${offerId}`, offer);
-    await kv.set(`offer:listing:${offer.listingId}:${offerId}`, offer);
-    await kv.set(`offer:buyer:${offer.buyerId}:${offerId}`, offer);
-    await kv.set(`offer:seller:${offer.sellerId}:${offerId}`, offer);
-
-    return c.json({ success: true, offer });
+    const updated = await db.setOfferStatus(offerId, 'accepted');
+    return c.json({ success: true, offer: updated });
   } catch (error) {
     console.error("Accept offer error:", error);
     return c.json({ error: "Failed to accept offer" }, 500);
@@ -1628,7 +1097,7 @@ app.post("/make-server-dd877831/offers/:id/decline", async (c) => {
 
   try {
     const offerId = c.req.param('id');
-    const offer = await kv.get(`offer:${offerId}`);
+    const offer = await db.getOffer(offerId);
 
     if (!offer) {
       return c.json({ error: "Offer not found" }, 404);
@@ -1638,15 +1107,8 @@ app.post("/make-server-dd877831/offers/:id/decline", async (c) => {
       return c.json({ error: "Only the seller can decline offers" }, 403);
     }
 
-    offer.status = 'declined';
-    offer.declinedAt = new Date().toISOString();
-
-    await kv.set(`offer:${offerId}`, offer);
-    await kv.set(`offer:listing:${offer.listingId}:${offerId}`, offer);
-    await kv.set(`offer:buyer:${offer.buyerId}:${offerId}`, offer);
-    await kv.set(`offer:seller:${offer.sellerId}:${offerId}`, offer);
-
-    return c.json({ success: true, offer });
+    const updated = await db.setOfferStatus(offerId, 'declined');
+    return c.json({ success: true, offer: updated });
   } catch (error) {
     console.error("Decline offer error:", error);
     return c.json({ error: "Failed to decline offer" }, 500);
@@ -1659,7 +1121,7 @@ app.post("/make-server-dd877831/offers/:id/complete", async (c) => {
 
   try {
     const offerId = c.req.param('id');
-    const offer = await kv.get(`offer:${offerId}`);
+    const offer = await db.getOffer(offerId);
 
     if (!offer) {
       return c.json({ error: "Offer not found" }, 404);
@@ -1673,37 +1135,12 @@ app.post("/make-server-dd877831/offers/:id/complete", async (c) => {
       return c.json({ error: "Only accepted offers can be completed" }, 400);
     }
 
-    offer.status = 'completed';
-    offer.completedAt = new Date().toISOString();
+    // One transaction: mark the offer completed, mark the listing completed (so
+    // it leaves the active feed), and swap ownership to the buyer. The guards
+    // above are re-checked under row locks inside complete_offer().
+    const completed = await db.completeOffer(offerId, user.id);
 
-    await kv.set(`offer:${offerId}`, offer);
-    await kv.set(`offer:listing:${offer.listingId}:${offerId}`, offer);
-    await kv.set(`offer:buyer:${offer.buyerId}:${offerId}`, offer);
-    await kv.set(`offer:seller:${offer.sellerId}:${offerId}`, offer);
-
-    // Swap listing ownership: buyer becomes the new seller
-    const listing = await kv.get(`listing:${offer.listingId}`);
-    if (listing) {
-      const oldSellerId = listing.sellerId;
-      const newSellerId = offer.buyerId;
-
-      listing.status = 'completed';
-      listing.sellerId = newSellerId;
-
-      // Update listing in all KV indexes
-      await kv.set(`listing:${offer.listingId}`, listing);
-      await kv.set(`listing:community:${listing.communityId}:${offer.listingId}`, listing);
-
-      // Remove old seller index and add new seller index
-      await kv.del(`listing:user:${oldSellerId}:${offer.listingId}`);
-      await kv.set(`listing:user:${newSellerId}:${offer.listingId}`, listing);
-
-      // Mirror the status/owner change into the secondary index. Now 'completed',
-      // it drops out of the active feed automatically.
-      await listingsIndex.upsertListing(listing);
-    }
-
-    return c.json({ success: true, offer });
+    return c.json({ success: true, offer: completed });
   } catch (error) {
     console.error("Complete offer error:", error);
     return c.json({ error: "Failed to complete offer" }, 500);
@@ -1716,7 +1153,7 @@ app.delete("/make-server-dd877831/offers/:id", async (c) => {
 
   try {
     const offerId = c.req.param('id');
-    const offer = await kv.get(`offer:${offerId}`);
+    const offer = await db.getOffer(offerId);
 
     if (!offer) {
       return c.json({ error: "Offer not found" }, 404);
@@ -1726,11 +1163,7 @@ app.delete("/make-server-dd877831/offers/:id", async (c) => {
       return c.json({ error: "Only the buyer can delete their offer" }, 403);
     }
 
-    // Delete from all KV store keys
-    await kv.del(`offer:${offerId}`);
-    await kv.del(`offer:listing:${offer.listingId}:${offerId}`);
-    await kv.del(`offer:buyer:${offer.buyerId}:${offerId}`);
-    await kv.del(`offer:seller:${offer.sellerId}:${offerId}`);
+    await db.deleteOffer(offerId);
 
     return c.json({ success: true });
   } catch (error) {
@@ -1745,19 +1178,11 @@ app.get("/make-server-dd877831/offers/my", async (c) => {
 
   try {
     const asType = c.req.query('as'); // 'buyer' or 'seller'
+    const as = asType === 'buyer' || asType === 'seller' ? asType : null;
 
-    let offers = [];
-    if (asType === 'buyer') {
-      offers = await kv.getByPrefix(`offer:buyer:${user.id}:`);
-    } else if (asType === 'seller') {
-      offers = await kv.getByPrefix(`offer:seller:${user.id}:`);
-    } else {
-      const buyerOffers = await kv.getByPrefix(`offer:buyer:${user.id}:`);
-      const sellerOffers = await kv.getByPrefix(`offer:seller:${user.id}:`);
-      offers = [...buyerOffers, ...sellerOffers];
-    }
-
-    offers.sort((a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+    // Indexed read off offers(buyer_id/seller_id), already newest-first — no
+    // prefix scans, no JS merge/sort.
+    const offers = await db.getOffersByUser(user.id, as);
 
     return c.json({ offers });
   } catch (error) {
@@ -1771,25 +1196,7 @@ app.get("/make-server-dd877831/offers/my", async (c) => {
 app.get("/make-server-dd877831/trending/zip/:zipCode", async (c) => {
   try {
     const zipCode = c.req.param('zipCode');
-
-    // Get all active listings in this zip code
-    const allListings = await kv.getByPrefix('listing:community:');
-    const zipListings = allListings.filter(
-      (l: any) => l && typeof l === 'object' && l.zipCode === zipCode && l.status === 'active' && !isListingExpired(l)
-    );
-
-    // Count offers per listing in parallel
-    const withCounts = await Promise.all(
-      zipListings.map(async (listing: any) => {
-        const offers = await kv.getByPrefix(`offer:listing:${listing.id}:`);
-        return { listing, offerCount: Array.isArray(offers) ? offers.length : 0 };
-      })
-    );
-
-    // Sort by offer count descending, return top 5
-    withCounts.sort((a: any, b: any) => b.offerCount - a.offerCount);
-    const items = withCounts.slice(0, 5);
-
+    const items = await db.getTrending({ zipCode, limit: 5 });
     return c.json({ items });
   } catch (error) {
     console.error("Trending by zip error:", error);
@@ -1800,26 +1207,8 @@ app.get("/make-server-dd877831/trending/zip/:zipCode", async (c) => {
 app.get("/make-server-dd877831/trending/community/:communityId", async (c) => {
   try {
     const communityId = c.req.param('communityId');
-    const rawListings = await kv.getByPrefix(`listing:community:${communityId}:`);
-    const communityListings = Array.isArray(rawListings)
-      ? rawListings.filter(
-          (l: any) => l && typeof l === 'object' && l.status === 'active' && !isListingExpired(l)
-        )
-      : [];
-
-    const withCounts = await Promise.all(
-      communityListings.map(async (listing: any) => {
-        const offers = await kv.getByPrefix(`offer:listing:${listing.id}:`);
-        return { listing, offerCount: Array.isArray(offers) ? offers.length : 0 };
-      })
-    );
-
-    withCounts.sort((a: any, b: any) => {
-      if (b.offerCount !== a.offerCount) return b.offerCount - a.offerCount;
-      return new Date(b.listing.createdAt || 0).getTime() - new Date(a.listing.createdAt || 0).getTime();
-    });
-
-    return c.json({ items: withCounts });
+    const items = await db.getTrending({ communityId });
+    return c.json({ items });
   } catch (error) {
     console.error("Trending by community error:", error);
     return c.json({ error: "Failed to get community rankings" }, 500);
@@ -1833,41 +1222,25 @@ app.post("/make-server-dd877831/chat/support", async (c) => {
   if (!user) return c.json({ error: "Unauthorized" }, 401);
 
   try {
-    // Return existing support thread if one already exists for this user
-    const existingThreads = await kv.getByPrefix(`thread:user:${user.id}:`);
-    const existing = existingThreads.find((t: any) => t?.type === 'support');
+    // One support thread per user, keyed by dedupe_key.
+    const dedupeKey = `support:${user.id}`;
+    const existing = await db.getThreadByDedupe(dedupeKey);
     if (existing) {
       return c.json({ thread: existing });
     }
 
-    // Find all admin users using dedicated admin index (efficient prefix scan)
-    const adminIndices = await kv.getByPrefix('role:admin:');
-    const admins = (adminIndices ?? [])
-      .map((entry: any) => entry.userId)
-      .filter((id: string) => id && id !== user.id);
-
+    // Admins are a column now (role = 'admin'), not a KV index.
+    const admins = (await db.getAdminUserIds()).filter((id) => id !== user.id);
     if (admins.length === 0) {
       return c.json({ error: "No admins available" }, 404);
     }
 
-    const threadId = crypto.randomUUID();
-    const participants = [user.id, ...admins];
-
-    const thread = {
-      id: threadId,
-      listingId: 'support',
+    const thread = await db.createThread({
       type: 'support',
       title: 'Support Team',
-      participants,
-      lastMessage: '',
-      lastMessageAt: new Date().toISOString(),
-      createdAt: new Date().toISOString(),
-    };
-
-    await kv.set(`thread:${threadId}`, thread);
-    for (const pid of participants) {
-      await kv.set(`thread:user:${pid}:${threadId}`, thread);
-    }
+      dedupeKey,
+      participantIds: [user.id, ...admins],
+    });
 
     return c.json({ thread });
   } catch (error) {
@@ -1883,26 +1256,19 @@ app.post("/make-server-dd877831/chat/threads", async (c) => {
   try {
     const { listingId, otherUserId } = await c.req.json();
 
-    // Check if thread already exists
-    const threadId = [user.id, otherUserId].sort().join(':');
-    const existingThread = await kv.get(`thread:${threadId}:${listingId}`);
-
+    // Dedupe on the same composite the KV id encoded: sorted users + listing.
+    const dedupeKey = `${[user.id, otherUserId].sort().join(':')}:${listingId}`;
+    const existingThread = await db.getThreadByDedupe(dedupeKey);
     if (existingThread) {
       return c.json({ thread: existingThread });
     }
 
-    const thread = {
-      id: `${threadId}:${listingId}`,
+    const thread = await db.createThread({
       listingId,
-      participants: [user.id, otherUserId],
-      lastMessage: '',
-      lastMessageAt: new Date().toISOString(),
-      createdAt: new Date().toISOString(),
-    };
-
-    await kv.set(`thread:${threadId}:${listingId}`, thread);
-    await kv.set(`thread:user:${user.id}:${thread.id}`, thread);
-    await kv.set(`thread:user:${otherUserId}:${thread.id}`, thread);
+      type: 'listing',
+      dedupeKey,
+      participantIds: [user.id, otherUserId],
+    });
 
     return c.json({ thread });
   } catch (error) {
@@ -1918,7 +1284,7 @@ app.post("/make-server-dd877831/chat/messages", async (c) => {
   try {
     const { threadId, content } = await c.req.json();
 
-    const thread = await kv.get(`thread:${threadId}`);
+    const thread = await db.getThread(threadId);
     if (!thread) {
       return c.json({ error: "Thread not found" }, 404);
     }
@@ -1927,27 +1293,9 @@ app.post("/make-server-dd877831/chat/messages", async (c) => {
       return c.json({ error: "Unauthorized" }, 403);
     }
 
-    const messageId = crypto.randomUUID();
-    const message = {
-      id: messageId,
-      threadId,
-      senderId: user.id,
-      content,
-      createdAt: new Date().toISOString(),
-    };
-
-    await kv.set(`message:${messageId}`, message);
-    await kv.set(`message:thread:${threadId}:${messageId}`, message);
-
-    // Update thread
-    thread.lastMessage = content;
-    thread.lastMessageAt = message.createdAt;
-    await kv.set(`thread:${threadId}`, thread);
-
-    // Update for both participants
-    for (const participantId of thread.participants) {
-      await kv.set(`thread:user:${participantId}:${thread.id}`, thread);
-    }
+    // Inserts the message and updates the thread's last_message preview in one
+    // place — no per-participant thread copies to fan out.
+    const message = await db.insertMessage(threadId, user.id, content);
 
     return c.json({ success: true, message });
   } catch (error) {
@@ -1961,9 +1309,7 @@ app.get("/make-server-dd877831/chat/threads", async (c) => {
   if (!user) return c.json({ error: "Unauthorized" }, 401);
 
   try {
-    const threads = await kv.getByPrefix(`thread:user:${user.id}:`);
-    threads.sort((a: any, b: any) => new Date(b.lastMessageAt).getTime() - new Date(a.lastMessageAt).getTime());
-
+    const threads = await db.listThreadsForUser(user.id);
     return c.json({ threads });
   } catch (error) {
     console.error("Get threads error:", error);
@@ -1977,15 +1323,12 @@ app.get("/make-server-dd877831/chat/messages/:threadId", async (c) => {
 
   try {
     const threadId = c.req.param('threadId');
-    const thread = await kv.get(`thread:${threadId}`);
 
-    if (!thread || !thread.participants.includes(user.id)) {
+    if (!(await db.isThreadParticipant(threadId, user.id))) {
       return c.json({ error: "Unauthorized" }, 403);
     }
 
-    const messages = await kv.getByPrefix(`message:thread:${threadId}:`);
-    messages.sort((a: any, b: any) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
-
+    const messages = await db.listMessages(threadId);
     return c.json({ messages });
   } catch (error) {
     console.error("Get messages error:", error);
@@ -1999,9 +1342,9 @@ app.delete("/make-server-dd877831/chat/messages/:messageId", async (c) => {
 
   try {
     const messageId = c.req.param('messageId');
-    const message = await kv.get(`message:${messageId}`);
+    const message = await db.getMessage(messageId);
 
-    if (!message || typeof message !== 'object') {
+    if (!message) {
       return c.json({ error: "Message not found" }, 404);
     }
 
@@ -2010,8 +1353,7 @@ app.delete("/make-server-dd877831/chat/messages/:messageId", async (c) => {
       return c.json({ error: "Forbidden" }, 403);
     }
 
-    await kv.del(`message:${messageId}`);
-    await kv.del(`message:thread:${message.threadId}:${messageId}`);
+    await db.deleteMessage(messageId);
 
     return c.json({ success: true });
   } catch (error) {
@@ -2033,7 +1375,7 @@ app.post("/make-server-dd877831/ratings", async (c) => {
       return c.json({ error: "Rating must be between 1 and 5" }, 400);
     }
 
-    const offer = await kv.get(`offer:${offerId}`);
+    const offer = await db.getOffer(offerId);
     if (!offer) {
       return c.json({ error: "Offer not found" }, 404);
     }
@@ -2045,45 +1387,30 @@ app.post("/make-server-dd877831/ratings", async (c) => {
     // Determine who is being rated
     const ratedUserId = offer.sellerId === user.id ? offer.buyerId : offer.sellerId;
 
-    // Check if already rated
-    const existingRating = await kv.get(`rating:${offerId}:${user.id}`);
-    if (existingRating) {
-      return c.json({ error: "You have already rated this exchange" }, 400);
-    }
-
     // Snapshot listing details so they're preserved even if the listing is later deleted
-    const listing = await kv.get(`listing:${offer.listingId}`);
+    const listing = await db.getListing(offer.listingId);
     const listingSnapshot = listing
       ? { id: listing.id, title: listing.title, photoUrl: listing.photos?.[0] ?? null }
       : null;
 
-    const ratingId = crypto.randomUUID();
-    const newRating = {
-      id: ratingId,
-      offerId,
-      ratedUserId,
-      raterUserId: user.id,
-      rating,
-      comment: comment || '',
-      listingSnapshot,
-      createdAt: new Date().toISOString(),
-    };
-
-    await kv.set(`rating:${ratingId}`, newRating);
-    await kv.set(`rating:${offerId}:${user.id}`, newRating);
-    await kv.set(`rating:user:${ratedUserId}:${ratingId}`, newRating);
-
-    // Update user's rating
-    const ratedUser = await kv.get(`user:${ratedUserId}`);
-    if (ratedUser) {
-      const currentTotal = (ratedUser.rating || 0) * (ratedUser.ratingCount || 0);
-      const newCount = (ratedUser.ratingCount || 0) + 1;
-      const newAverage = (currentTotal + rating) / newCount;
-
-      ratedUser.rating = Math.round(newAverage * 10) / 10; // Round to 1 decimal
-      ratedUser.ratingCount = newCount;
-
-      await kv.set(`user:${ratedUserId}`, ratedUser);
+    // Dedup (one rating per rater per offer) is enforced by
+    // ratings_offer_rater_unique. The rated user's average updates through
+    // profiles_view — no counter to maintain.
+    let newRating;
+    try {
+      newRating = await db.insertRating({
+        offerId,
+        ratedUserId,
+        raterUserId: user.id,
+        rating,
+        comment: comment || '',
+        listingSnapshot,
+      });
+    } catch (e) {
+      if (e instanceof db.DuplicateRatingError) {
+        return c.json({ error: "You have already rated this exchange" }, 400);
+      }
+      throw e;
     }
 
     return c.json({ success: true, rating: newRating });
@@ -2096,10 +1423,7 @@ app.post("/make-server-dd877831/ratings", async (c) => {
 app.get("/make-server-dd877831/ratings/user/:userId", async (c) => {
   try {
     const userId = c.req.param('userId');
-    const ratings = await kv.getByPrefix(`rating:user:${userId}:`);
-
-    ratings.sort((a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-
+    const ratings = await db.getRatingsForUser(userId);
     return c.json({ ratings });
   } catch (error) {
     console.error("Get user ratings error:", error);
@@ -2113,9 +1437,9 @@ app.delete("/make-server-dd877831/ratings/:ratingId", async (c) => {
 
   try {
     const ratingId = c.req.param('ratingId');
-    const rating = await kv.get(`rating:${ratingId}`);
+    const rating = await db.getRating(ratingId);
 
-    if (!rating || typeof rating !== 'object') {
+    if (!rating) {
       return c.json({ error: "Rating not found" }, 404);
     }
 
@@ -2124,22 +1448,8 @@ app.delete("/make-server-dd877831/ratings/:ratingId", async (c) => {
       return c.json({ error: "Forbidden" }, 403);
     }
 
-    await kv.del(`rating:${ratingId}`);
-    await kv.del(`rating:${rating.offerId}:${rating.raterUserId}`);
-    await kv.del(`rating:user:${rating.ratedUserId}:${ratingId}`);
-
-    // Recompute aggregate rating for the rated user
-    const remainingRatings = await kv.getByPrefix(`rating:user:${rating.ratedUserId}:`);
-    const ratedUser = await kv.get(`user:${rating.ratedUserId}`);
-    if (ratedUser) {
-      const count = remainingRatings.length;
-      const avg = count > 0
-        ? remainingRatings.reduce((sum: number, r: any) => sum + (r.rating ?? 0), 0) / count
-        : 0;
-      ratedUser.rating = Math.round(avg * 10) / 10;
-      ratedUser.ratingCount = count;
-      await kv.set(`user:${rating.ratedUserId}`, ratedUser);
-    }
+    // The rated user's average recomputes via profiles_view on the next read.
+    await db.deleteRating(ratingId);
 
     return c.json({ success: true });
   } catch (error) {
@@ -2156,19 +1466,19 @@ app.put("/make-server-dd877831/profile", async (c) => {
 
   try {
     const updates = await c.req.json();
-    const profile = await kv.get(`user:${user.id}`);
 
-    if (!profile) {
+    if (!(await db.getProfile(user.id))) {
       return c.json({ error: "Profile not found" }, 404);
     }
 
-    // Update allowed fields
-    if (updates.name !== undefined) profile.name = updates.name;
-    if (updates.bio !== undefined) profile.bio = updates.bio;
-    if (updates.socialUrl !== undefined) profile.socialUrl = updates.socialUrl;
-    if (updates.profilePhotoUrl !== undefined) profile.profilePhotoUrl = updates.profilePhotoUrl;
-
-    await kv.set(`user:${user.id}`, profile);
+    // Only these fields are user-editable; updateProfile emits only the keys
+    // that are present.
+    const profile = await db.updateProfile(user.id, {
+      name: updates.name,
+      bio: updates.bio,
+      socialUrl: updates.socialUrl,
+      profilePhotoUrl: updates.profilePhotoUrl,
+    });
 
     return c.json({ success: true, profile });
   } catch (error) {
@@ -2180,7 +1490,7 @@ app.put("/make-server-dd877831/profile", async (c) => {
 app.get("/make-server-dd877831/profile/:userId", async (c) => {
   try {
     const userId = c.req.param('userId');
-    const profile = await kv.get(`user:${userId}`);
+    const profile = await db.getProfile(userId);
 
     if (!profile) {
       return c.json({ error: "Profile not found" }, 404);
