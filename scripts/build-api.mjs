@@ -13,8 +13,9 @@ await build({
   format: 'esm',
   target: 'node20',
   // esbuild keeps Node built-ins (node:*, fs, etc.) external automatically on
-  // platform:node; app code and npm dependencies are inlined so the deployed
-  // function has no package-resolution edge cases at runtime.
+  // platform:node; app code and ordinary npm dependencies (including jose, which
+  // verifies Firebase ID tokens) are inlined so the deployed function is fully
+  // self-contained — nothing for @vercel/nft to (mis)trace at runtime.
   logLevel: 'info',
   // ESM bundles that reference CJS globals (some transitive deps do) need these
   // shimmed at the top of the output.

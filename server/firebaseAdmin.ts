@@ -1,6 +1,12 @@
-// Node-only Firebase Admin token verifier for the API backend.
-import { initializeApp, getApps, cert, applicationDefault } from 'firebase-admin/app';
-import { getAuth } from 'firebase-admin/auth';
+// Node-only Firebase ID token verifier for the API backend.
+//
+// We verify Firebase ID tokens directly with `jose` against Google's public JWKS
+// rather than the firebase-admin SDK: firebase-admin pulls in jwks-rsa@4 → jose@6
+// (ESM-only) and crashes on Vercel with ERR_REQUIRE_ESM (a CommonJS require() of
+// an ES module). jose is ESM-native, bundles cleanly into the function, and token
+// verification only needs Google's public keys — no service-account credential.
+// (firebase-admin stays in package.json for any future server-side user mgmt.)
+import { jwtVerify, createRemoteJWKSet } from 'jose';
 
 export type AuthedUser = {
   id: string;
@@ -8,38 +14,49 @@ export type AuthedUser = {
   user_metadata?: Record<string, any>;
 };
 
-// Lazily initialize the default app once. Credentials: prefer an inline
-// service-account JSON in FIREBASE_SERVICE_ACCOUNT; otherwise fall back to
-// Application Default Credentials (GOOGLE_APPLICATION_CREDENTIALS / GCP metadata).
-function initAdmin(): void {
-  if (getApps().length) return;
+// Firebase signs ID tokens (RS256) with rotating keys published here as a JWKS.
+// createRemoteJWKSet fetches + caches them and refetches on an unknown key id.
+const JWKS = createRemoteJWKSet(
+  new URL('https://www.googleapis.com/service_accounts/v1/jwk/securetoken@system.gserviceaccount.com'),
+);
+
+// Project id drives the issuer/audience checks. Prefer the service-account JSON
+// (already configured), then an explicit/forwarded project-id env, then a constant.
+function firebaseProjectId(): string {
   const raw = process.env.FIREBASE_SERVICE_ACCOUNT;
-  initializeApp({
-    credential: raw ? cert(JSON.parse(raw)) : applicationDefault(),
-  });
+  if (raw) {
+    try { return JSON.parse(raw).project_id; } catch { /* fall through */ }
+  }
+  return process.env.FIREBASE_PROJECT_ID || process.env.VITE_FIREBASE_PROJECT_ID || 'share-crops-app';
 }
 
+const PROJECT_ID = firebaseProjectId();
+
 // Verify a Firebase ID token and map it to the app's authenticated-user shape.
-// Returns null on invalid/expired tokens. The user_metadata mirror lets the
-// existing OAuth auto-provision path work unchanged.
+// Returns null on any invalid/expired/wrong-audience token. The user_metadata
+// mirror keeps the existing OAuth auto-provision path working unchanged.
 //
-// Security gate: tokens whose email is not yet verified are rejected. This stops
-// someone from signing up with an email they don't control and immediately
-// acting as that identity. Federated providers (Google) return email_verified
-// true; email/password users must complete the verification email first.
+// Security gate: tokens whose email is not yet verified are rejected, so a user
+// can't sign up with an address they don't control and immediately act as that
+// identity. Federated providers (Google) set email_verified true; email/password
+// users must complete the verification email first.
 export async function verifyFirebaseToken(token: string): Promise<AuthedUser | null> {
-  initAdmin();
   try {
-    const decoded = await getAuth().verifyIdToken(token);
-    if (decoded.email && !decoded.email_verified) return null;
+    const { payload } = await jwtVerify(token, JWKS, {
+      issuer: `https://securetoken.google.com/${PROJECT_ID}`,
+      audience: PROJECT_ID,
+      algorithms: ['RS256'],
+    });
+    if (!payload.sub) return null;
+    if (payload.email && !payload.email_verified) return null;
     return {
-      id: decoded.uid,
-      email: decoded.email ?? null,
+      id: String(payload.sub),
+      email: (payload.email as string | undefined) ?? null,
       user_metadata: {
-        full_name: decoded.name,
-        name: decoded.name,
-        avatar_url: decoded.picture,
-        picture: decoded.picture,
+        full_name: payload.name,
+        name: payload.name,
+        avatar_url: payload.picture,
+        picture: payload.picture,
       },
     };
   } catch {
