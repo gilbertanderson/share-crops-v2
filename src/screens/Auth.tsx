@@ -30,8 +30,7 @@ function friendlyAuthError(err: unknown): string {
       return 'Please choose a stronger password (at least 6 characters).';
     case 'auth/too-many-requests':
       return 'Too many attempts. Please wait a bit and try again.';
-    case 'auth/popup-closed-by-user':
-    case 'auth/cancelled-popup-request':
+    case 'auth/redirect-cancelled-by-user':
       return 'Google sign-in was cancelled.';
     case 'auth/network-request-failed':
       return 'Network error. Check your connection and try again.';
@@ -97,7 +96,6 @@ export default function Auth() {
   const oauth = async () => {
     try {
       await signInWithGoogle();
-      await refreshAuth();
     } catch (err) {
       showToast(friendlyAuthError(err));
     }

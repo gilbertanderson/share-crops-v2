@@ -1,7 +1,7 @@
 import {
   createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
-  signInWithPopup,
+  signInWithRedirect,
   GoogleAuthProvider,
   onAuthStateChanged,
   signOut,
@@ -30,11 +30,11 @@ export function signInWithEmail(email: string, password: string): Promise<User> 
   return signInWithEmailAndPassword(auth, email, password).then((c) => c.user);
 }
 
-/** Sign in with Google via popup. Google accounts are email-verified, so they
- *  pass the backend's email_verified gate immediately. Requires the Google
- *  provider enabled + the app's domain in Authorized Domains (localhost is). */
-export function signInWithGoogle(): Promise<User> {
-  return signInWithPopup(auth, googleProvider).then((r) => r.user);
+/** Sign in with Google via redirect. Google accounts are email-verified, so they
+ *  pass the backend's email_verified gate immediately. Redirect avoids popup
+ *  blockers and Chrome COOP `window.closed` warnings. */
+export function signInWithGoogle(): Promise<void> {
+  return signInWithRedirect(auth, googleProvider);
 }
 
 /** Subscribe to auth state. Fires with the user (or null) on sign-in/out and on
