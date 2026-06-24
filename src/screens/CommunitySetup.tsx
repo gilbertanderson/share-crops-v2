@@ -46,7 +46,7 @@ export default function CommunitySetup() {
 
   return (
     <>
-      <div className="app-header">
+      <div className="app-header" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center' }}>
         <h1>Find your community</h1>
         <div className="subtitle">Join neighbors trading produce near you, or start a new one.</div>
         <div className="segmented" style={{ marginTop: 12 }}>
@@ -55,7 +55,7 @@ export default function CommunitySetup() {
         </div>
       </div>
 
-      <div style={{ padding: '16px 16px 32px' }}>
+      <div style={{ padding: '16px 16px 32px', maxWidth: 420, margin: '0 auto', width: '100%', boxSizing: 'border-box', textAlign: 'center' }}>
         {tab === 'join' ? (
           <>
             <div style={{ display: 'flex', gap: 8 }}>

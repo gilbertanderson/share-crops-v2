@@ -3,7 +3,7 @@
 //
 // Relational data-access layer (migration B3). Replaces the hand-synced KV blobs
 // (`listing:*`, `user:*`, etc.) and the listings_dd877831 mirror with the single
-// normalized schema in supabase/migrations/20260623000000_relational_schema.sql.
+// normalized schema in supabase/migrations/20260624042719_relational_schema.sql.
 //
 // The Supabase JS client (PostgREST + RPC) is the only driver — it runs in both
 // the Deno edge function and the Node/Vercel function, so there's no second DB
