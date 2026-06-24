@@ -1,4 +1,14 @@
 {
+  "auth": {
+    "providers": {
+      "emailPassword": true,
+      "googleSignIn": {
+        "oAuthBrandDisplayName": "Share Crops",
+        "supportEmail": "gilbertjanderson@gmail.com",
+        "authorizedRedirectUris": ["https://share-crops-v2.vercel.app"]
+      }
+    }
+  },
   "hosting": {
     "public": "dist",
     "ignore": ["firebase.json", "**/.*", "**/node_modules/**"],

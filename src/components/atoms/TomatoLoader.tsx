@@ -36,8 +36,11 @@ export function TomatoLoader({ label = 'Loading...', size = 'md', className }: T
     const FULL_TOMATO_AT = 900; // ms
 
     const tick = (now: number) => {
-      const elapsed = now - startTime;
-      const progress = Math.min(1, 1 - Math.exp(-elapsed / TIME_CONSTANT));
+      // In some browsers the first RAF timestamp can be fractionally earlier
+      // than a freshly captured performance.now(), so clamp before deriving SVG
+      // dimensions. SVG rejects negative rect heights, even tiny sub-pixel ones.
+      const elapsed = Math.max(0, now - startTime);
+      const progress = Math.min(1, Math.max(0, 1 - Math.exp(-elapsed / TIME_CONSTANT)));
       const y = FILL_BOTTOM - progress * FILL_RANGE;
       const height = progress * FILL_RANGE;
 

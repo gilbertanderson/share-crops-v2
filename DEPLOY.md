@@ -97,6 +97,16 @@ vercel env add ADMIN_EMAIL
 vercel env add CORS_ORIGINS
 vercel env add DEFAULT_ORIGIN
 vercel env add SKIP_INIT              # true
+vercel env add FIREBASE_SERVICE_ACCOUNT
+
+# Frontend build-time Firebase web config (client-safe; Production + Preview):
+vercel env add VITE_FIREBASE_API_KEY
+vercel env add VITE_FIREBASE_AUTH_DOMAIN
+vercel env add VITE_FIREBASE_PROJECT_ID
+vercel env add VITE_FIREBASE_STORAGE_BUCKET
+vercel env add VITE_FIREBASE_MESSAGING_SENDER_ID
+vercel env add VITE_FIREBASE_APP_ID
+vercel env add VITE_FIREBASE_MEASUREMENT_ID
 
 # Frontend build-time — point the app at its own /api as the fallback:
 vercel env add VITE_FALLBACK_API_URL  # https://<your-app>.vercel.app/api/make-server-dd877831
@@ -109,8 +119,12 @@ vercel --prod
 ```
 
 Build settings are in `vercel.json`. The `buildCommand` is
-`node scripts/build-api.mjs && vite build`:
+`node scripts/check-vercel-env.mjs && node scripts/build-api.mjs && vite build`:
 
+- **`scripts/check-vercel-env.mjs`** fails the deploy early if the Firebase
+  browser config or Admin service-account JSON is missing. Without the
+  `VITE_FIREBASE_*` values, the login screen throws `auth/invalid-api-key` at
+  module load and renders blank.
 - **`scripts/build-api.mjs`** esbuild-bundles `server/entry.ts` into a single
   self-contained `api/index.js` (git-ignored, generated). This is required: the
   function imports the shared Hono backend from `supabase/functions/_shared`,
