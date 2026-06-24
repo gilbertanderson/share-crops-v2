@@ -1,0 +1,3 @@
+-- Already applied on the remote database (created via the Supabase dashboard).
+-- Empty placeholder so the CLI migration history is consistent; this version is
+-- recorded as applied remotely and will be skipped by `db push`.
