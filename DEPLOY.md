@@ -97,7 +97,7 @@ vercel env add ADMIN_EMAIL
 vercel env add CORS_ORIGINS
 vercel env add DEFAULT_ORIGIN
 vercel env add SKIP_INIT              # true
-vercel env add FIREBASE_SERVICE_ACCOUNT
+vercel env add FIREBASE_PROJECT_ID    # share-crops-app
 
 # Frontend build-time Firebase web config (client-safe; Production + Preview):
 vercel env add VITE_FIREBASE_API_KEY
@@ -122,9 +122,10 @@ Build settings are in `vercel.json`. The `buildCommand` is
 `node scripts/check-vercel-env.mjs && node scripts/build-api.mjs && vite build`:
 
 - **`scripts/check-vercel-env.mjs`** fails the deploy early if the Firebase
-  browser config or Admin service-account JSON is missing. Without the
+  browser config or server-side project id is missing. Without the
   `VITE_FIREBASE_*` values, the login screen throws `auth/invalid-api-key` at
-  module load and renders blank.
+  module load and renders blank. The API verifier uses `FIREBASE_PROJECT_ID` for
+  Firebase ID-token issuer/audience checks.
 - **`scripts/build-api.mjs`** esbuild-bundles `server/entry.ts` into a single
   self-contained `api/index.js` (git-ignored, generated). This is required: the
   function imports the shared Hono backend from `supabase/functions/_shared`,

@@ -5,7 +5,7 @@ const required = [
   'VITE_FIREBASE_STORAGE_BUCKET',
   'VITE_FIREBASE_MESSAGING_SENDER_ID',
   'VITE_FIREBASE_APP_ID',
-  'FIREBASE_SERVICE_ACCOUNT',
+  'FIREBASE_PROJECT_ID',
 ];
 
 const missing = required.filter((key) => !process.env[key]?.trim());
