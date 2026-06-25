@@ -11,7 +11,12 @@ serviceAccount*.json
 .vscode/*
 !.vscode/extensions.json
 .vercel
-api/index.js
+# NOTE: api/index.js (the bundled Vercel function) is intentionally committed.
+# It is gitignored nowhere because Vercel detects Serverless Functions from the
+# files present in the Git source; if it's absent from the clone, no function is
+# registered and every /api/* request falls through to the static SPA (405 on
+# POST). The build regenerates it on each deploy, so committed content stays
+# current. See scripts/build-api.mjs and the bundle-api-function vite plugin.
 
 # Test artifacts
 test-results
