@@ -194,7 +194,7 @@ export default function Profile() {
         )}
       </div>
 
-      <div style={{ padding: '0 16px 24px', textAlign: 'center', display: 'flex', flexDirection: 'column', gap: 8 }}>
+      <div style={{ padding: '0 16px 24px', textAlign: 'center', display: 'flex', flexDirection: 'column', gap: 8, maxWidth: 'fit-content', alignSelf: 'center' }}>
         <button
           className="btn btn-outline btn-sm"
           disabled={enablePush.isPending}
