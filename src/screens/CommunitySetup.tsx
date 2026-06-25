@@ -45,7 +45,8 @@ export default function CommunitySetup() {
   });
 
   return (
-    <>
+    <div className="app">
+      <div className="screen-body">
       <div className="app-header" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center' }}>
         <h1>Find your community</h1>
         <div className="subtitle">Join neighbors trading produce near you, or start a new one.</div>
@@ -108,6 +109,7 @@ export default function CommunitySetup() {
           <button className="btn btn-ghost btn-sm" onClick={logout}>Log out</button>
         </div>
       </div>
-    </>
+      </div>
+    </div>
   );
 }

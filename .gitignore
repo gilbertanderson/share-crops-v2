@@ -26,3 +26,4 @@ supabase/.temp
 # Firebase emulator logs
 *-debug.log
 firebase-debug.log
+.env*
