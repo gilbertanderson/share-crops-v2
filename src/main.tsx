@@ -31,3 +31,13 @@ createRoot(document.getElementById('root')!).render(
     </QueryClientProvider>
   </BrowserRouter>
 );
+
+// Register the app-shell service worker (PWA install + offline). Push uses a
+// separate FCM worker, registered on demand from requestPushToken().
+if ('serviceWorker' in navigator && import.meta.env.PROD) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('/sw.js').catch((err) => {
+      console.warn('Service worker registration failed:', err);
+    });
+  });
+}
