@@ -79,7 +79,6 @@ a { color: inherit; }
    max-width container — the header/nav bars themselves still span full width. */
 .screen-body > * {
   width: 100%;
-  max-width: 900px;
   margin-inline: auto;
 }
 
