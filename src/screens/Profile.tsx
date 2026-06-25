@@ -42,7 +42,6 @@ export default function Profile() {
   const qc = useQueryClient();
   const { data: me, isLoading } = useMe();
   const [showEdit, setShowEdit] = useState(false);
-  const [enablingPush, setEnablingPush] = useState(false);
 
   const communitiesQuery = useQuery({ queryKey: ['my-communities'], queryFn: () => API.getMyCommunities() });
   const communities = communitiesQuery.data?.communities ?? [];
@@ -68,6 +67,16 @@ export default function Profile() {
       showToast('Left community');
     },
     onError: (e: Error) => showToast(e.message || 'Could not leave community'),
+  });
+
+  const enablePush = useMutation({
+    mutationFn: async () => {
+      const token = await requestPushToken();
+      if (!token) throw new Error('Notifications unavailable or permission denied');
+      await API.registerPushToken(token);
+    },
+    onSuccess: () => showToast('Notifications enabled'),
+    onError: (e: Error) => showToast(e.message || 'Could not enable notifications'),
   });
 
   const listingsQuery = useQuery({
@@ -188,25 +197,10 @@ export default function Profile() {
       <div style={{ padding: '0 16px 24px', textAlign: 'center', display: 'flex', flexDirection: 'column', gap: 8 }}>
         <button
           className="btn btn-outline btn-sm"
-          disabled={enablingPush}
-          onClick={async () => {
-            setEnablingPush(true);
-            try {
-              const token = await requestPushToken();
-              if (!token) {
-                showToast('Notifications unavailable or permission denied');
-                return;
-              }
-              await API.registerPushToken(token);
-              showToast('Notifications enabled');
-            } catch {
-              showToast('Could not enable notifications');
-            } finally {
-              setEnablingPush(false);
-            }
-          }}
+          disabled={enablePush.isPending}
+          onClick={() => enablePush.mutate()}
         >
-          {enablingPush ? 'Enabling…' : 'Enable notifications'}
+          {enablePush.isPending ? 'Enabling…' : 'Enable notifications'}
         </button>
         <button className="btn btn-ghost btn-sm" onClick={logout}>Log out</button>
       </div>
