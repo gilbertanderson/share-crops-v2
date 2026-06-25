@@ -58,6 +58,25 @@ Real signup/login can be exercised locally with the **Firebase Auth Emulator**
   `iss/aud = demo-share-crops` and `email_verified:false` for new email/password
   users — which is why the app holds them at the verification screen.
 
+### MCP servers
+The repo declares its MCP servers in `.mcp.json` (project-scoped, version
+controlled):
+- **Supabase** — `https://mcp.supabase.com/mcp?...` (read-only). Already
+  authorized in the Cursor Cloud environment, so its tools work out of the box.
+- **Vercel** — `https://mcp.vercel.com`. This is the official, **OAuth-only**
+  remote server; there is no static token / header auth. On first connection
+  Cursor shows a **"Needs login"** prompt that must be authorized interactively
+  in the **Cursor desktop IDE**. An autonomous cloud agent cannot complete this
+  OAuth handshake, which is why the Vercel server can surface as `error` /
+  `Needs login` in cloud runs. To make it usable:
+  1. In the Cursor desktop IDE, open Settings → MCP and authorize **Vercel**
+     (log in with your Vercel account). This persists the OAuth grant.
+  2. For Cloud Agents specifically, ensure the cloud-agent **Network Access**
+     allowlist includes `mcp.vercel.com` (cloud-agent shell egress is otherwise
+     blocked). Configure this under Cloud Agents settings.
+  Cloud agents cannot perform step 1 themselves — it requires a human in the
+  desktop IDE.
+
 ### Testing
 - E2E: `npx playwright test` (Playwright auto-starts Vite on port 4321). Browser
   install: `npx playwright install chromium` (Chromium only; that's all the
