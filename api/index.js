@@ -13807,7 +13807,7 @@ function maybe_map(val, fn) {
   }
   return fn(val);
 }
-var has, hex_table, limit, encode;
+var has, hex_table, limit, encode3;
 var init_utils = __esm({
   "node_modules/@anthropic-ai/sdk/internal/qs/utils.mjs"() {
     init_formats();
@@ -13821,7 +13821,7 @@ var init_utils = __esm({
       return array;
     })();
     limit = 1024;
-    encode = (str, _defaultEncoder, charset, _kind, format) => {
+    encode3 = (str, _defaultEncoder, charset, _kind, format) => {
       if (str.length === 0) {
         return str;
       }
@@ -14145,7 +14145,7 @@ var init_stringify = __esm({
       delimiter: "&",
       encode: true,
       encodeDotInKeys: false,
-      encoder: encode,
+      encoder: encode3,
       encodeValuesOnly: false,
       format: default_format,
       formatter: default_formatter,
@@ -14369,21 +14369,21 @@ var init_token_cache = __esm({
       async getToken() {
         const force = this.nextForce;
         this.nextForce = false;
-        const cached = this.cached;
-        if (force || cached == null) {
+        const cached2 = this.cached;
+        if (force || cached2 == null) {
           const token2 = await this.refresh(force);
           return token2.token;
         }
-        if (cached.expiresAt == null) {
-          return cached.token;
+        if (cached2.expiresAt == null) {
+          return cached2.token;
         }
-        const remaining = cached.expiresAt - nowAsSeconds();
+        const remaining = cached2.expiresAt - nowAsSeconds();
         if (remaining > ADVISORY_REFRESH_THRESHOLD_IN_SECONDS) {
-          return cached.token;
+          return cached2.token;
         }
         if (remaining > MANDATORY_REFRESH_THRESHOLD_IN_SECONDS) {
           this.backgroundRefresh();
-          return cached.token;
+          return cached2.token;
         }
         const token = await this.refresh();
         return token.token;
@@ -15838,9 +15838,9 @@ function getName(value, stripPath) {
 }
 function supportsFormData(fetchObject) {
   const fetch2 = typeof fetchObject === "function" ? fetchObject : fetchObject.fetch;
-  const cached = supportsFormDataMap.get(fetch2);
-  if (cached)
-    return cached;
+  const cached2 = supportsFormDataMap.get(fetch2);
+  if (cached2)
+    return cached2;
   const promise = (async () => {
     try {
       const FetchResponse = "Response" in fetch2 ? fetch2.Response : (await fetch2("data:,")).constructor;
@@ -16913,10 +16913,10 @@ var require_base64 = __commonJS({
     );
     exports.Coder = Coder;
     var stdCoder = new Coder();
-    function encode3(data) {
+    function encode4(data) {
       return stdCoder.encode(data);
     }
-    exports.encode = encode3;
+    exports.encode = encode4;
     function decode2(s) {
       return stdCoder.decode(s);
     }
@@ -24989,7 +24989,7 @@ var init_client = __esm({
 });
 
 // node_modules/@anthropic-ai/sdk/lib/middleware.mjs
-var encoder;
+var encoder2;
 var init_middleware2 = __esm({
   "node_modules/@anthropic-ai/sdk/lib/middleware.mjs"() {
     init_error();
@@ -24997,7 +24997,7 @@ var init_middleware2 = __esm({
     init_errors();
     init_values();
     init_request_options();
-    encoder = new TextEncoder();
+    encoder2 = new TextEncoder();
   }
 });
 
@@ -35742,7 +35742,7 @@ var resolveFetch2 = (customFetch2) => {
 var resolveHeadersConstructor = () => {
   return Headers;
 };
-var fetchWithAuth = (supabaseKey, supabaseUrl, getAccessToken, customFetch2, tracePropagationOptions) => {
+var fetchWithAuth = (supabaseKey, supabaseUrl, getAccessToken2, customFetch2, tracePropagationOptions) => {
   const fetch$1 = resolveFetch2(customFetch2);
   const HeadersConstructor = resolveHeadersConstructor();
   const traceEnabled = (tracePropagationOptions === null || tracePropagationOptions === void 0 ? void 0 : tracePropagationOptions.enabled) === true;
@@ -35750,7 +35750,7 @@ var fetchWithAuth = (supabaseKey, supabaseUrl, getAccessToken, customFetch2, tra
   const traceTargets = traceEnabled ? getDefaultPropagationTargets(supabaseUrl) : null;
   return async (input, init) => {
     var _await$getAccessToken;
-    const accessToken = (_await$getAccessToken = await getAccessToken()) !== null && _await$getAccessToken !== void 0 ? _await$getAccessToken : supabaseKey;
+    const accessToken = (_await$getAccessToken = await getAccessToken2()) !== null && _await$getAccessToken !== void 0 ? _await$getAccessToken : supabaseKey;
     let headers = new HeadersConstructor(init === null || init === void 0 ? void 0 : init.headers);
     if (!headers.has("apikey")) headers.set("apikey", supabaseKey);
     if (!headers.has("Authorization")) headers.set("Authorization", `Bearer ${accessToken}`);
@@ -36716,210 +36716,18 @@ var savePushToken = async (userId, token) => {
   const { error } = await db().from("push_tokens").upsert({ token, user_id: userId }, { onConflict: "token" });
   if (error) throw new Error(error.message);
 };
-
-// server/security.ts
-var RATE_LIMIT_WINDOW = 6e4;
-var RATE_LIMIT_MAX_REQUESTS = 100;
-var rateLimitStore = /* @__PURE__ */ new Map();
-var AUTH_RATE_LIMIT_WINDOW = 15 * 60 * 1e3;
-var AUTH_RATE_LIMIT_MAX = 10;
-var authRateLimitStore = /* @__PURE__ */ new Map();
-var LOCKOUT_WINDOW = 15 * 60 * 1e3;
-var LOCKOUT_MAX_EMAIL = 5;
-var LOCKOUT_MAX_IP = 20;
-var LOCKOUT_DURATION = 15 * 60 * 1e3;
-var failedLoginStore = /* @__PURE__ */ new Map();
-var getClientIp = (req) => {
-  const forwardedFor = req.header("x-forwarded-for");
-  if (forwardedFor) {
-    return forwardedFor.split(",")[0].trim();
-  }
-  return req.header("x-real-ip") || req.header("cf-connecting-ip") || "unknown";
+var getPushTokensForUser = async (userId) => {
+  const { data, error } = await db().from("push_tokens").select("token").eq("user_id", userId);
+  if (error) throw new Error(error.message);
+  return (data ?? []).map((r) => r.token);
 };
-var rateLimit = (req) => {
-  const clientIp = getClientIp(req);
-  const now = Date.now();
-  const windowStart = now - RATE_LIMIT_WINDOW;
-  let requests = rateLimitStore.get(clientIp) || [];
-  requests = requests.filter((timestamp) => timestamp > windowStart);
-  const allowed = requests.length < RATE_LIMIT_MAX_REQUESTS;
-  if (allowed) {
-    requests.push(now);
-  }
-  rateLimitStore.set(clientIp, requests);
-  const remaining = Math.max(0, RATE_LIMIT_MAX_REQUESTS - requests.length);
-  const resetTime = requests.length > 0 ? requests[0] + RATE_LIMIT_WINDOW : now + RATE_LIMIT_WINDOW;
-  return { allowed, remaining, resetTime };
+var deletePushToken = async (token) => {
+  const { error } = await db().from("push_tokens").delete().eq("token", token);
+  if (error) throw new Error(error.message);
 };
-var authRateLimit = (req) => {
-  const clientIp = getClientIp(req);
-  const now = Date.now();
-  const windowStart = now - AUTH_RATE_LIMIT_WINDOW;
-  let requests = authRateLimitStore.get(clientIp) || [];
-  requests = requests.filter((ts) => ts > windowStart);
-  const allowed = requests.length < AUTH_RATE_LIMIT_MAX;
-  if (allowed) requests.push(now);
-  authRateLimitStore.set(clientIp, requests);
-  const remaining = Math.max(0, AUTH_RATE_LIMIT_MAX - requests.length);
-  const resetTime = requests.length > 0 ? requests[0] + AUTH_RATE_LIMIT_WINDOW : now + AUTH_RATE_LIMIT_WINDOW;
-  return { allowed, remaining, resetTime };
-};
-var trackFailedLogin = (email, ip) => {
-  const now = Date.now();
-  const windowStart = now - LOCKOUT_WINDOW;
-  for (const [key, max] of [
-    [`email:${email.toLowerCase()}`, LOCKOUT_MAX_EMAIL],
-    [`ip:${ip}`, LOCKOUT_MAX_IP]
-  ]) {
-    const entry = failedLoginStore.get(key) ?? { count: 0, lockedUntil: 0, timestamps: [] };
-    entry.timestamps = entry.timestamps.filter((ts) => ts > windowStart);
-    entry.timestamps.push(now);
-    if (entry.timestamps.length >= max) {
-      entry.lockedUntil = now + LOCKOUT_DURATION;
-    }
-    entry.count = entry.timestamps.length;
-    failedLoginStore.set(key, entry);
-  }
-};
-var isLockedOut = (email, ip) => {
-  const now = Date.now();
-  for (const key of [`email:${email.toLowerCase()}`, `ip:${ip}`]) {
-    const entry = failedLoginStore.get(key);
-    if (entry && entry.lockedUntil > now) {
-      return { locked: true, retryAfter: Math.ceil((entry.lockedUntil - now) / 1e3) };
-    }
-  }
-  return { locked: false, retryAfter: 0 };
-};
-var resetFailedLogin = (email) => {
-  failedLoginStore.delete(`email:${email.toLowerCase()}`);
-};
-var validateInput = (value, type, options) => {
-  if (value === null || value === void 0) {
-    return { valid: false, error: "Value is required" };
-  }
-  switch (type) {
-    case "string":
-      if (typeof value !== "string") {
-        return { valid: false, error: "Must be a string" };
-      }
-      const maxLength = options?.maxLength || 1e3;
-      const minLength = options?.minLength || 0;
-      if (value.length < minLength || value.length > maxLength) {
-        return { valid: false, error: `String length must be between ${minLength} and ${maxLength}` };
-      }
-      return { valid: true };
-    case "email":
-      if (typeof value !== "string") {
-        return { valid: false, error: "Email must be a string" };
-      }
-      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-      if (!emailRegex.test(value)) {
-        return { valid: false, error: "Invalid email format" };
-      }
-      return { valid: true };
-    case "uuid":
-      if (typeof value !== "string") {
-        return { valid: false, error: "UUID must be a string" };
-      }
-      const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-      if (!uuidRegex.test(value)) {
-        return { valid: false, error: "Invalid UUID format" };
-      }
-      return { valid: true };
-    case "number":
-      if (typeof value !== "number" || isNaN(value)) {
-        return { valid: false, error: "Must be a number" };
-      }
-      const min = options?.min ?? -Infinity;
-      const max = options?.max ?? Infinity;
-      if (value < min || value > max) {
-        return { valid: false, error: `Number must be between ${min} and ${max}` };
-      }
-      return { valid: true };
-    case "array":
-      if (!Array.isArray(value)) {
-        return { valid: false, error: "Must be an array" };
-      }
-      const maxItems = options?.maxItems || 1e3;
-      if (value.length > maxItems) {
-        return { valid: false, error: `Array must contain fewer than ${maxItems} items` };
-      }
-      return { valid: true };
-    default:
-      return { valid: false, error: "Unknown type" };
-  }
-};
-var sanitizeString = (input) => {
-  if (typeof input !== "string") return "";
-  return input.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#x27;").replace(/\//g, "&#x2F;");
-};
-var validateJwtStructure = (token) => {
-  if (!token || typeof token !== "string") {
-    return { valid: false, error: "Token is required" };
-  }
-  const parts = token.split(".");
-  if (parts.length !== 3) {
-    return { valid: false, error: "Invalid token format" };
-  }
-  try {
-    atob(parts[0]);
-    atob(parts[1]);
-    return { valid: true };
-  } catch {
-    return { valid: false, error: "Invalid token encoding" };
-  }
-};
-var validateQuerySafety = (input) => {
-  const dangerousPatterns = [
-    /(\bUNION\b|\bSELECT\b|\bDROP\b|\bDELETE\b|\bINSERT\b|\bUPDATE\b|\bEXEC\b|\bEXECUTE\b)/i,
-    /(-{2}|\/\*|\*\/|;)/,
-    /[\x00\x1a]/
-  ];
-  for (const pattern of dangerousPatterns) {
-    if (pattern.test(input)) {
-      return { safe: false, reason: "Potentially dangerous SQL pattern detected" };
-    }
-  }
-  return { safe: true };
-};
-var getSecurityHeaders = () => ({
-  "X-Content-Type-Options": "nosniff",
-  "X-Frame-Options": "DENY",
-  "X-XSS-Protection": "1; mode=block",
-  "Strict-Transport-Security": "max-age=31536000; includeSubDomains; preload",
-  "Content-Security-Policy": [
-    "default-src 'self'",
-    "script-src 'self'",
-    "style-src 'self' 'unsafe-inline'",
-    "img-src 'self' data: blob: https:",
-    "font-src 'self' data:",
-    "connect-src 'self' https://*.supabase.co",
-    "frame-ancestors 'none'",
-    "base-uri 'self'",
-    "form-action 'self'"
-  ].join("; "),
-  "Referrer-Policy": "strict-origin-when-cross-origin",
-  "Permissions-Policy": "geolocation=(), microphone=(), camera=()",
-  "Cross-Origin-Opener-Policy": "same-origin-allow-popups",
-  "Cross-Origin-Resource-Policy": "same-origin"
-});
-var logSecurityEvent = (eventType, severity, details) => {
-  const timestamp = (/* @__PURE__ */ new Date()).toISOString();
-  const event = {
-    timestamp,
-    eventType,
-    severity,
-    details
-  };
-  console.error(`[SECURITY] ${severity.toUpperCase()} - ${eventType}:`, event);
-};
-
-// server/app.ts
-init_sdk();
 
 // node_modules/jose/dist/webapi/lib/buffer_utils.js
-var encoder2 = new TextEncoder();
+var encoder = new TextEncoder();
 var decoder = new TextDecoder();
 var MAX_INT32 = 2 ** 32;
 function concat(...buffers) {
@@ -36932,7 +36740,7 @@ function concat(...buffers) {
   }
   return buf;
 }
-function encode2(string) {
+function encode(string) {
   const bytes = new Uint8Array(string.length);
   for (let i = 0; i < string.length; i++) {
     const code = string.charCodeAt(i);
@@ -36945,6 +36753,17 @@ function encode2(string) {
 }
 
 // node_modules/jose/dist/webapi/lib/base64.js
+function encodeBase64(input) {
+  if (Uint8Array.prototype.toBase64) {
+    return input.toBase64();
+  }
+  const CHUNK_SIZE = 32768;
+  const arr = [];
+  for (let i = 0; i < input.length; i += CHUNK_SIZE) {
+    arr.push(String.fromCharCode.apply(null, input.subarray(i, i + CHUNK_SIZE)));
+  }
+  return btoa(arr.join(""));
+}
 function decodeBase64(encoded) {
   if (Uint8Array.fromBase64) {
     return Uint8Array.fromBase64(encoded);
@@ -36974,6 +36793,16 @@ function decode(input) {
   } catch {
     throw new TypeError("The input to be decoded is not correctly encoded.");
   }
+}
+function encode2(input) {
+  let unencoded = input;
+  if (typeof unencoded === "string") {
+    unencoded = encoder.encode(unencoded);
+  }
+  if (Uint8Array.prototype.toBase64) {
+    return unencoded.toBase64({ alphabet: "base64url", omitPadding: true });
+  }
+  return encodeBase64(unencoded).replace(/=/g, "").replace(/\+/g, "-").replace(/\//g, "_");
 }
 
 // node_modules/jose/dist/webapi/lib/crypto_key.js
@@ -37186,6 +37015,11 @@ var isKeyLike = (key) => isCryptoKey(key) || isKeyObject(key);
 
 // node_modules/jose/dist/webapi/lib/helpers.js
 var unprotected = Symbol();
+function assertNotSet(value, name) {
+  if (value) {
+    throw new TypeError(`${name} can only be called once`);
+  }
+}
 function decodeBase64url(value, label, ErrorClass) {
   try {
     return decode(value);
@@ -37283,6 +37117,12 @@ async function getSigKey(alg, key, usage) {
   }
   checkSigCryptoKey(key, alg, usage);
   return key;
+}
+async function sign(alg, key, data) {
+  const cryptoKey = await getSigKey(alg, key, "sign");
+  checkKeyLength(alg, cryptoKey);
+  const signature = await crypto.subtle.sign(subtleAlgorithm(alg, cryptoKey.algorithm), cryptoKey, data);
+  return new Uint8Array(signature);
 }
 async function verify(alg, key, signature, data) {
   const cryptoKey = await getSigKey(alg, key, "verify");
@@ -37408,25 +37248,25 @@ var unusableForAlg = "given KeyObject instance cannot be used for this algorithm
 var cache;
 var handleJWK = async (key, jwk, alg, freeze = false) => {
   cache ||= /* @__PURE__ */ new WeakMap();
-  let cached = cache.get(key);
-  if (cached?.[alg]) {
-    return cached[alg];
+  let cached2 = cache.get(key);
+  if (cached2?.[alg]) {
+    return cached2[alg];
   }
   const cryptoKey = await jwkToKey({ ...jwk, alg });
   if (freeze)
     Object.freeze(key);
-  if (!cached) {
+  if (!cached2) {
     cache.set(key, { [alg]: cryptoKey });
   } else {
-    cached[alg] = cryptoKey;
+    cached2[alg] = cryptoKey;
   }
   return cryptoKey;
 };
 var handleKeyObject = (keyObject, alg) => {
   cache ||= /* @__PURE__ */ new WeakMap();
-  let cached = cache.get(keyObject);
-  if (cached?.[alg]) {
-    return cached[alg];
+  let cached2 = cache.get(keyObject);
+  if (cached2?.[alg]) {
+    return cached2[alg];
   }
   const isPublic = keyObject.type === "public";
   const extractable = isPublic ? true : false;
@@ -37525,10 +37365,10 @@ var handleKeyObject = (keyObject, alg) => {
   if (!cryptoKey) {
     throw new TypeError(unusableForAlg);
   }
-  if (!cached) {
+  if (!cached2) {
     cache.set(keyObject, { [alg]: cryptoKey });
   } else {
-    cached[alg] = cryptoKey;
+    cached2[alg] = cryptoKey;
   }
   return cryptoKey;
 };
@@ -37564,7 +37404,167 @@ async function normalizeKey(key, alg) {
   throw new Error("unreachable");
 }
 
+// node_modules/jose/dist/webapi/lib/asn1.js
+var bytesEqual = (a, b) => {
+  if (a.byteLength !== b.length)
+    return false;
+  for (let i = 0; i < a.byteLength; i++) {
+    if (a[i] !== b[i])
+      return false;
+  }
+  return true;
+};
+var createASN1State = (data) => ({ data, pos: 0 });
+var parseLength = (state) => {
+  const first = state.data[state.pos++];
+  if (first & 128) {
+    const lengthOfLen = first & 127;
+    let length = 0;
+    for (let i = 0; i < lengthOfLen; i++) {
+      length = length << 8 | state.data[state.pos++];
+    }
+    return length;
+  }
+  return first;
+};
+var expectTag = (state, expectedTag, errorMessage) => {
+  if (state.data[state.pos++] !== expectedTag) {
+    throw new Error(errorMessage);
+  }
+};
+var getSubarray = (state, length) => {
+  const result = state.data.subarray(state.pos, state.pos + length);
+  state.pos += length;
+  return result;
+};
+var parseAlgorithmOID = (state) => {
+  expectTag(state, 6, "Expected algorithm OID");
+  const oidLen = parseLength(state);
+  return getSubarray(state, oidLen);
+};
+function parsePKCS8Header(state) {
+  expectTag(state, 48, "Invalid PKCS#8 structure");
+  parseLength(state);
+  expectTag(state, 2, "Expected version field");
+  const verLen = parseLength(state);
+  state.pos += verLen;
+  expectTag(state, 48, "Expected algorithm identifier");
+  const algIdLen = parseLength(state);
+  const algIdStart = state.pos;
+  return { algIdStart, algIdLength: algIdLen };
+}
+var parseECAlgorithmIdentifier = (state) => {
+  const algOid = parseAlgorithmOID(state);
+  if (bytesEqual(algOid, [43, 101, 110])) {
+    return "X25519";
+  }
+  if (!bytesEqual(algOid, [42, 134, 72, 206, 61, 2, 1])) {
+    throw new Error("Unsupported key algorithm");
+  }
+  expectTag(state, 6, "Expected curve OID");
+  const curveOidLen = parseLength(state);
+  const curveOid = getSubarray(state, curveOidLen);
+  for (const { name, oid } of [
+    { name: "P-256", oid: [42, 134, 72, 206, 61, 3, 1, 7] },
+    { name: "P-384", oid: [43, 129, 4, 0, 34] },
+    { name: "P-521", oid: [43, 129, 4, 0, 35] }
+  ]) {
+    if (bytesEqual(curveOid, oid)) {
+      return name;
+    }
+  }
+  throw new Error("Unsupported named curve");
+};
+var genericImport = async (keyFormat, keyData, alg, options) => {
+  let algorithm;
+  let keyUsages;
+  const isPublic = keyFormat === "spki";
+  const getSigUsages = () => isPublic ? ["verify"] : ["sign"];
+  const getEncUsages = () => isPublic ? ["encrypt", "wrapKey"] : ["decrypt", "unwrapKey"];
+  switch (alg) {
+    case "PS256":
+    case "PS384":
+    case "PS512":
+      algorithm = { name: "RSA-PSS", hash: `SHA-${alg.slice(-3)}` };
+      keyUsages = getSigUsages();
+      break;
+    case "RS256":
+    case "RS384":
+    case "RS512":
+      algorithm = { name: "RSASSA-PKCS1-v1_5", hash: `SHA-${alg.slice(-3)}` };
+      keyUsages = getSigUsages();
+      break;
+    case "RSA-OAEP":
+    case "RSA-OAEP-256":
+    case "RSA-OAEP-384":
+    case "RSA-OAEP-512":
+      algorithm = {
+        name: "RSA-OAEP",
+        hash: `SHA-${parseInt(alg.slice(-3), 10) || 1}`
+      };
+      keyUsages = getEncUsages();
+      break;
+    case "ES256":
+    case "ES384":
+    case "ES512": {
+      const curveMap = { ES256: "P-256", ES384: "P-384", ES512: "P-521" };
+      algorithm = { name: "ECDSA", namedCurve: curveMap[alg] };
+      keyUsages = getSigUsages();
+      break;
+    }
+    case "ECDH-ES":
+    case "ECDH-ES+A128KW":
+    case "ECDH-ES+A192KW":
+    case "ECDH-ES+A256KW": {
+      try {
+        const namedCurve = options.getNamedCurve(keyData);
+        algorithm = namedCurve === "X25519" ? { name: "X25519" } : { name: "ECDH", namedCurve };
+      } catch (cause) {
+        throw new JOSENotSupported("Invalid or unsupported key format");
+      }
+      keyUsages = isPublic ? [] : ["deriveBits"];
+      break;
+    }
+    case "Ed25519":
+    case "EdDSA":
+      algorithm = { name: "Ed25519" };
+      keyUsages = getSigUsages();
+      break;
+    case "ML-DSA-44":
+    case "ML-DSA-65":
+    case "ML-DSA-87":
+      algorithm = { name: alg };
+      keyUsages = getSigUsages();
+      break;
+    default:
+      throw new JOSENotSupported('Invalid or unsupported "alg" (Algorithm) value');
+  }
+  return crypto.subtle.importKey(keyFormat, keyData, algorithm, options?.extractable ?? (isPublic ? true : false), keyUsages);
+};
+var processPEMData = (pem, pattern) => {
+  return decodeBase64(pem.replace(pattern, ""));
+};
+var fromPKCS8 = (pem, alg, options) => {
+  const keyData = processPEMData(pem, /(?:-----(?:BEGIN|END) PRIVATE KEY-----|\s)/g);
+  let opts = options;
+  if (alg?.startsWith?.("ECDH-ES")) {
+    opts ||= {};
+    opts.getNamedCurve = (keyData2) => {
+      const state = createASN1State(keyData2);
+      parsePKCS8Header(state);
+      return parseECAlgorithmIdentifier(state);
+    };
+  }
+  return genericImport("pkcs8", keyData, alg, opts);
+};
+
 // node_modules/jose/dist/webapi/key/import.js
+async function importPKCS8(pkcs8, alg, options) {
+  if (typeof pkcs8 !== "string" || pkcs8.indexOf("-----BEGIN PRIVATE KEY-----") !== 0) {
+    throw new TypeError('"pkcs8" must be PKCS#8 formatted string');
+  }
+  return fromPKCS8(pkcs8, alg, options);
+}
 async function importJWK(jwk, alg, options) {
   if (!isObject(jwk)) {
     throw new TypeError("JWK must be an object");
@@ -37827,7 +37827,7 @@ async function flattenedVerify(jws, key, options) {
     resolvedKey = true;
   }
   checkKeyType(alg, key, "verify");
-  const data = concat(jws.protected !== void 0 ? encode2(jws.protected) : new Uint8Array(), encode2("."), typeof jws.payload === "string" ? b64 ? encode2(jws.payload) : encoder2.encode(jws.payload) : jws.payload);
+  const data = concat(jws.protected !== void 0 ? encode(jws.protected) : new Uint8Array(), encode("."), typeof jws.payload === "string" ? b64 ? encode(jws.payload) : encoder.encode(jws.payload) : jws.payload);
   const signature = decodeBase64url(jws.signature, "signature", JWSInvalid);
   const k = await normalizeKey(key, alg);
   const verified = await verify(alg, k, signature, data);
@@ -37838,7 +37838,7 @@ async function flattenedVerify(jws, key, options) {
   if (b64) {
     payload = decodeBase64url(jws.payload, "payload", JWSInvalid);
   } else if (typeof jws.payload === "string") {
-    payload = encoder2.encode(jws.payload);
+    payload = encoder.encode(jws.payload);
   } else {
     payload = jws.payload;
   }
@@ -37931,6 +37931,12 @@ function secs(str) {
     return -numericDate;
   }
   return numericDate;
+}
+function validateInput(label, input) {
+  if (!Number.isFinite(input)) {
+    throw new TypeError(`Invalid ${label} input`);
+  }
+  return input;
 }
 var normalizeTyp = (value) => {
   if (value.includes("/")) {
@@ -38031,6 +38037,68 @@ function validateClaimsSet(protectedHeader, encodedPayload, options = {}) {
   }
   return payload;
 }
+var JWTClaimsBuilder = class {
+  #payload;
+  constructor(payload) {
+    if (!isObject(payload)) {
+      throw new TypeError("JWT Claims Set MUST be an object");
+    }
+    this.#payload = structuredClone(payload);
+  }
+  data() {
+    return encoder.encode(JSON.stringify(this.#payload));
+  }
+  get iss() {
+    return this.#payload.iss;
+  }
+  set iss(value) {
+    this.#payload.iss = value;
+  }
+  get sub() {
+    return this.#payload.sub;
+  }
+  set sub(value) {
+    this.#payload.sub = value;
+  }
+  get aud() {
+    return this.#payload.aud;
+  }
+  set aud(value) {
+    this.#payload.aud = value;
+  }
+  set jti(value) {
+    this.#payload.jti = value;
+  }
+  set nbf(value) {
+    if (typeof value === "number") {
+      this.#payload.nbf = validateInput("setNotBefore", value);
+    } else if (value instanceof Date) {
+      this.#payload.nbf = validateInput("setNotBefore", epoch(value));
+    } else {
+      this.#payload.nbf = epoch(/* @__PURE__ */ new Date()) + secs(value);
+    }
+  }
+  set exp(value) {
+    if (typeof value === "number") {
+      this.#payload.exp = validateInput("setExpirationTime", value);
+    } else if (value instanceof Date) {
+      this.#payload.exp = validateInput("setExpirationTime", epoch(value));
+    } else {
+      this.#payload.exp = epoch(/* @__PURE__ */ new Date()) + secs(value);
+    }
+  }
+  set iat(value) {
+    if (value === void 0) {
+      this.#payload.iat = epoch(/* @__PURE__ */ new Date());
+    } else if (value instanceof Date) {
+      this.#payload.iat = validateInput("setIssuedAt", epoch(value));
+    } else if (typeof value === "string") {
+      this.#payload.iat = validateInput("setIssuedAt", epoch(/* @__PURE__ */ new Date()) + secs(value));
+    } else {
+      this.#payload.iat = validateInput("setIssuedAt", value);
+    }
+  }
+};
 
 // node_modules/jose/dist/webapi/jwt/verify.js
 async function jwtVerify(jwt, key, options) {
@@ -38045,6 +38113,154 @@ async function jwtVerify(jwt, key, options) {
   }
   return result;
 }
+
+// node_modules/jose/dist/webapi/jws/flattened/sign.js
+var FlattenedSign = class {
+  #payload;
+  #protectedHeader;
+  #unprotectedHeader;
+  constructor(payload) {
+    if (!(payload instanceof Uint8Array)) {
+      throw new TypeError("payload must be an instance of Uint8Array");
+    }
+    this.#payload = payload;
+  }
+  setProtectedHeader(protectedHeader) {
+    assertNotSet(this.#protectedHeader, "setProtectedHeader");
+    this.#protectedHeader = protectedHeader;
+    return this;
+  }
+  setUnprotectedHeader(unprotectedHeader) {
+    assertNotSet(this.#unprotectedHeader, "setUnprotectedHeader");
+    this.#unprotectedHeader = unprotectedHeader;
+    return this;
+  }
+  async sign(key, options) {
+    if (!this.#protectedHeader && !this.#unprotectedHeader) {
+      throw new JWSInvalid("either setProtectedHeader or setUnprotectedHeader must be called before #sign()");
+    }
+    if (!isDisjoint(this.#protectedHeader, this.#unprotectedHeader)) {
+      throw new JWSInvalid("JWS Protected and JWS Unprotected Header Parameter names must be disjoint");
+    }
+    const joseHeader = {
+      ...this.#protectedHeader,
+      ...this.#unprotectedHeader
+    };
+    const extensions = validateCrit(JWSInvalid, /* @__PURE__ */ new Map([["b64", true]]), options?.crit, this.#protectedHeader, joseHeader);
+    let b64 = true;
+    if (extensions.has("b64")) {
+      b64 = this.#protectedHeader.b64;
+      if (typeof b64 !== "boolean") {
+        throw new JWSInvalid('The "b64" (base64url-encode payload) Header Parameter must be a boolean');
+      }
+    }
+    const { alg } = joseHeader;
+    if (typeof alg !== "string" || !alg) {
+      throw new JWSInvalid('JWS "alg" (Algorithm) Header Parameter missing or invalid');
+    }
+    checkKeyType(alg, key, "sign");
+    let payloadS;
+    let payloadB;
+    if (b64) {
+      payloadS = encode2(this.#payload);
+      payloadB = encode(payloadS);
+    } else {
+      payloadB = this.#payload;
+      payloadS = "";
+    }
+    let protectedHeaderString;
+    let protectedHeaderBytes;
+    if (this.#protectedHeader) {
+      protectedHeaderString = encode2(JSON.stringify(this.#protectedHeader));
+      protectedHeaderBytes = encode(protectedHeaderString);
+    } else {
+      protectedHeaderString = "";
+      protectedHeaderBytes = new Uint8Array();
+    }
+    const data = concat(protectedHeaderBytes, encode("."), payloadB);
+    const k = await normalizeKey(key, alg);
+    const signature = await sign(alg, k, data);
+    const jws = {
+      signature: encode2(signature),
+      payload: payloadS
+    };
+    if (this.#unprotectedHeader) {
+      jws.header = this.#unprotectedHeader;
+    }
+    if (this.#protectedHeader) {
+      jws.protected = protectedHeaderString;
+    }
+    return jws;
+  }
+};
+
+// node_modules/jose/dist/webapi/jws/compact/sign.js
+var CompactSign = class {
+  #flattened;
+  constructor(payload) {
+    this.#flattened = new FlattenedSign(payload);
+  }
+  setProtectedHeader(protectedHeader) {
+    this.#flattened.setProtectedHeader(protectedHeader);
+    return this;
+  }
+  async sign(key, options) {
+    const jws = await this.#flattened.sign(key, options);
+    if (jws.payload === void 0) {
+      throw new TypeError("use the flattened module for creating JWS with b64: false");
+    }
+    return `${jws.protected}.${jws.payload}.${jws.signature}`;
+  }
+};
+
+// node_modules/jose/dist/webapi/jwt/sign.js
+var SignJWT = class {
+  #protectedHeader;
+  #jwt;
+  constructor(payload = {}) {
+    this.#jwt = new JWTClaimsBuilder(payload);
+  }
+  setIssuer(issuer) {
+    this.#jwt.iss = issuer;
+    return this;
+  }
+  setSubject(subject) {
+    this.#jwt.sub = subject;
+    return this;
+  }
+  setAudience(audience) {
+    this.#jwt.aud = audience;
+    return this;
+  }
+  setJti(jwtId) {
+    this.#jwt.jti = jwtId;
+    return this;
+  }
+  setNotBefore(input) {
+    this.#jwt.nbf = input;
+    return this;
+  }
+  setExpirationTime(input) {
+    this.#jwt.exp = input;
+    return this;
+  }
+  setIssuedAt(input) {
+    this.#jwt.iat = input;
+    return this;
+  }
+  setProtectedHeader(protectedHeader) {
+    this.#protectedHeader = protectedHeader;
+    return this;
+  }
+  async sign(key, options) {
+    const sig = new CompactSign(this.#jwt.data());
+    sig.setProtectedHeader(this.#protectedHeader);
+    if (Array.isArray(this.#protectedHeader?.crit) && this.#protectedHeader.crit.includes("b64") && this.#protectedHeader.b64 === false) {
+      throw new JWTInvalid("JWTs MUST NOT use unencoded payload");
+    }
+    return sig.sign(key, options);
+  }
+};
 
 // node_modules/jose/dist/webapi/jwks/local.js
 function getKtyFromAlg(alg) {
@@ -38137,15 +38353,15 @@ var LocalJWKSet = class {
   }
 };
 async function importWithAlgCache(cache2, jwk, alg) {
-  const cached = cache2.get(jwk) || cache2.set(jwk, {}).get(jwk);
-  if (cached[alg] === void 0) {
+  const cached2 = cache2.get(jwk) || cache2.set(jwk, {}).get(jwk);
+  if (cached2[alg] === void 0) {
     const key = await importJWK({ ...jwk, ext: true }, alg);
     if (key instanceof Uint8Array || key.type !== "public") {
       throw new JWKSInvalid("JSON Web Key Set members must be public keys");
     }
-    cached[alg] = key;
+    cached2[alg] = key;
   }
-  return cached[alg];
+  return cached2[alg];
 }
 function createLocalJWKSet(jwks) {
   const set = new LocalJWKSet(jwks);
@@ -38323,6 +38539,279 @@ function createRemoteJWKSet(url, options) {
   });
   return remoteJWKSet;
 }
+
+// server/fcm.ts
+var FCM_SCOPE = "https://www.googleapis.com/auth/firebase.messaging";
+function serviceAccount() {
+  const raw2 = getEnv("FIREBASE_SERVICE_ACCOUNT");
+  if (!raw2) return null;
+  try {
+    return JSON.parse(raw2);
+  } catch {
+    return null;
+  }
+}
+var cached = null;
+async function getAccessToken(sa) {
+  const now = Math.floor(Date.now() / 1e3);
+  if (cached && cached.exp - 60 > now) return cached.token;
+  const tokenUri = sa.token_uri || "https://oauth2.googleapis.com/token";
+  const key = await importPKCS8(sa.private_key, "RS256");
+  const assertion = await new SignJWT({ scope: FCM_SCOPE }).setProtectedHeader({ alg: "RS256" }).setIssuer(sa.client_email).setSubject(sa.client_email).setAudience(tokenUri).setIssuedAt(now).setExpirationTime(now + 3600).sign(key);
+  const res = await fetch(tokenUri, {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams({
+      grant_type: "urn:ietf:params:oauth:grant-type:jwt-bearer",
+      assertion
+    })
+  });
+  if (!res.ok) {
+    console.error("FCM access-token error:", res.status, await res.text().catch(() => ""));
+    return null;
+  }
+  const json = await res.json();
+  cached = { token: json.access_token, exp: now + (json.expires_in ?? 3600) };
+  return cached.token;
+}
+async function sendPushToUser(userId, notification) {
+  try {
+    const sa = serviceAccount();
+    if (!sa) return;
+    const tokens = await getPushTokensForUser(userId);
+    if (!tokens.length) return;
+    const accessToken = await getAccessToken(sa);
+    if (!accessToken) return;
+    const endpoint = `https://fcm.googleapis.com/v1/projects/${sa.project_id}/messages:send`;
+    await Promise.all(tokens.map(async (token) => {
+      try {
+        const res = await fetch(endpoint, {
+          method: "POST",
+          headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
+          body: JSON.stringify({
+            message: {
+              token,
+              notification: { title: notification.title, body: notification.body },
+              data: notification.data,
+              webpush: { fcmOptions: { link: notification.link || "/" } }
+            }
+          })
+        });
+        if (res.status === 404 || res.status === 403) {
+          await deletePushToken(token).catch(() => {
+          });
+        } else if (!res.ok) {
+          console.error("FCM send error:", res.status, await res.text().catch(() => ""));
+        }
+      } catch (e) {
+        console.error("FCM send exception:", String(e));
+      }
+    }));
+  } catch (e) {
+    console.error("sendPushToUser failed:", String(e));
+  }
+}
+
+// server/security.ts
+var RATE_LIMIT_WINDOW = 6e4;
+var RATE_LIMIT_MAX_REQUESTS = 100;
+var rateLimitStore = /* @__PURE__ */ new Map();
+var AUTH_RATE_LIMIT_WINDOW = 15 * 60 * 1e3;
+var AUTH_RATE_LIMIT_MAX = 10;
+var authRateLimitStore = /* @__PURE__ */ new Map();
+var LOCKOUT_WINDOW = 15 * 60 * 1e3;
+var LOCKOUT_MAX_EMAIL = 5;
+var LOCKOUT_MAX_IP = 20;
+var LOCKOUT_DURATION = 15 * 60 * 1e3;
+var failedLoginStore = /* @__PURE__ */ new Map();
+var getClientIp = (req) => {
+  const forwardedFor = req.header("x-forwarded-for");
+  if (forwardedFor) {
+    return forwardedFor.split(",")[0].trim();
+  }
+  return req.header("x-real-ip") || req.header("cf-connecting-ip") || "unknown";
+};
+var rateLimit = (req) => {
+  const clientIp = getClientIp(req);
+  const now = Date.now();
+  const windowStart = now - RATE_LIMIT_WINDOW;
+  let requests = rateLimitStore.get(clientIp) || [];
+  requests = requests.filter((timestamp) => timestamp > windowStart);
+  const allowed = requests.length < RATE_LIMIT_MAX_REQUESTS;
+  if (allowed) {
+    requests.push(now);
+  }
+  rateLimitStore.set(clientIp, requests);
+  const remaining = Math.max(0, RATE_LIMIT_MAX_REQUESTS - requests.length);
+  const resetTime = requests.length > 0 ? requests[0] + RATE_LIMIT_WINDOW : now + RATE_LIMIT_WINDOW;
+  return { allowed, remaining, resetTime };
+};
+var authRateLimit = (req) => {
+  const clientIp = getClientIp(req);
+  const now = Date.now();
+  const windowStart = now - AUTH_RATE_LIMIT_WINDOW;
+  let requests = authRateLimitStore.get(clientIp) || [];
+  requests = requests.filter((ts) => ts > windowStart);
+  const allowed = requests.length < AUTH_RATE_LIMIT_MAX;
+  if (allowed) requests.push(now);
+  authRateLimitStore.set(clientIp, requests);
+  const remaining = Math.max(0, AUTH_RATE_LIMIT_MAX - requests.length);
+  const resetTime = requests.length > 0 ? requests[0] + AUTH_RATE_LIMIT_WINDOW : now + AUTH_RATE_LIMIT_WINDOW;
+  return { allowed, remaining, resetTime };
+};
+var trackFailedLogin = (email, ip) => {
+  const now = Date.now();
+  const windowStart = now - LOCKOUT_WINDOW;
+  for (const [key, max] of [
+    [`email:${email.toLowerCase()}`, LOCKOUT_MAX_EMAIL],
+    [`ip:${ip}`, LOCKOUT_MAX_IP]
+  ]) {
+    const entry = failedLoginStore.get(key) ?? { count: 0, lockedUntil: 0, timestamps: [] };
+    entry.timestamps = entry.timestamps.filter((ts) => ts > windowStart);
+    entry.timestamps.push(now);
+    if (entry.timestamps.length >= max) {
+      entry.lockedUntil = now + LOCKOUT_DURATION;
+    }
+    entry.count = entry.timestamps.length;
+    failedLoginStore.set(key, entry);
+  }
+};
+var isLockedOut = (email, ip) => {
+  const now = Date.now();
+  for (const key of [`email:${email.toLowerCase()}`, `ip:${ip}`]) {
+    const entry = failedLoginStore.get(key);
+    if (entry && entry.lockedUntil > now) {
+      return { locked: true, retryAfter: Math.ceil((entry.lockedUntil - now) / 1e3) };
+    }
+  }
+  return { locked: false, retryAfter: 0 };
+};
+var resetFailedLogin = (email) => {
+  failedLoginStore.delete(`email:${email.toLowerCase()}`);
+};
+var validateInput2 = (value, type, options) => {
+  if (value === null || value === void 0) {
+    return { valid: false, error: "Value is required" };
+  }
+  switch (type) {
+    case "string":
+      if (typeof value !== "string") {
+        return { valid: false, error: "Must be a string" };
+      }
+      const maxLength = options?.maxLength || 1e3;
+      const minLength = options?.minLength || 0;
+      if (value.length < minLength || value.length > maxLength) {
+        return { valid: false, error: `String length must be between ${minLength} and ${maxLength}` };
+      }
+      return { valid: true };
+    case "email":
+      if (typeof value !== "string") {
+        return { valid: false, error: "Email must be a string" };
+      }
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(value)) {
+        return { valid: false, error: "Invalid email format" };
+      }
+      return { valid: true };
+    case "uuid":
+      if (typeof value !== "string") {
+        return { valid: false, error: "UUID must be a string" };
+      }
+      const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+      if (!uuidRegex.test(value)) {
+        return { valid: false, error: "Invalid UUID format" };
+      }
+      return { valid: true };
+    case "number":
+      if (typeof value !== "number" || isNaN(value)) {
+        return { valid: false, error: "Must be a number" };
+      }
+      const min = options?.min ?? -Infinity;
+      const max = options?.max ?? Infinity;
+      if (value < min || value > max) {
+        return { valid: false, error: `Number must be between ${min} and ${max}` };
+      }
+      return { valid: true };
+    case "array":
+      if (!Array.isArray(value)) {
+        return { valid: false, error: "Must be an array" };
+      }
+      const maxItems = options?.maxItems || 1e3;
+      if (value.length > maxItems) {
+        return { valid: false, error: `Array must contain fewer than ${maxItems} items` };
+      }
+      return { valid: true };
+    default:
+      return { valid: false, error: "Unknown type" };
+  }
+};
+var sanitizeString = (input) => {
+  if (typeof input !== "string") return "";
+  return input.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#x27;").replace(/\//g, "&#x2F;");
+};
+var validateJwtStructure = (token) => {
+  if (!token || typeof token !== "string") {
+    return { valid: false, error: "Token is required" };
+  }
+  const parts = token.split(".");
+  if (parts.length !== 3) {
+    return { valid: false, error: "Invalid token format" };
+  }
+  try {
+    atob(parts[0]);
+    atob(parts[1]);
+    return { valid: true };
+  } catch {
+    return { valid: false, error: "Invalid token encoding" };
+  }
+};
+var validateQuerySafety = (input) => {
+  const dangerousPatterns = [
+    /(\bUNION\b|\bSELECT\b|\bDROP\b|\bDELETE\b|\bINSERT\b|\bUPDATE\b|\bEXEC\b|\bEXECUTE\b)/i,
+    /(-{2}|\/\*|\*\/|;)/,
+    /[\x00\x1a]/
+  ];
+  for (const pattern of dangerousPatterns) {
+    if (pattern.test(input)) {
+      return { safe: false, reason: "Potentially dangerous SQL pattern detected" };
+    }
+  }
+  return { safe: true };
+};
+var getSecurityHeaders = () => ({
+  "X-Content-Type-Options": "nosniff",
+  "X-Frame-Options": "DENY",
+  "X-XSS-Protection": "1; mode=block",
+  "Strict-Transport-Security": "max-age=31536000; includeSubDomains; preload",
+  "Content-Security-Policy": [
+    "default-src 'self'",
+    "script-src 'self'",
+    "style-src 'self' 'unsafe-inline'",
+    "img-src 'self' data: blob: https:",
+    "font-src 'self' data:",
+    "connect-src 'self' https://*.supabase.co",
+    "frame-ancestors 'none'",
+    "base-uri 'self'",
+    "form-action 'self'"
+  ].join("; "),
+  "Referrer-Policy": "strict-origin-when-cross-origin",
+  "Permissions-Policy": "geolocation=(), microphone=(), camera=()",
+  "Cross-Origin-Opener-Policy": "same-origin-allow-popups",
+  "Cross-Origin-Resource-Policy": "same-origin"
+});
+var logSecurityEvent = (eventType, severity, details) => {
+  const timestamp = (/* @__PURE__ */ new Date()).toISOString();
+  const event = {
+    timestamp,
+    eventType,
+    severity,
+    details
+  };
+  console.error(`[SECURITY] ${severity.toUpperCase()} - ${eventType}:`, event);
+};
+
+// server/app.ts
+init_sdk();
 
 // server/firebaseAdmin.ts
 var JWKS = createRemoteJWKSet(
@@ -38549,12 +39038,12 @@ app.post("/make-server-dd877831/auth/signup", async (c) => {
     if (!email || !password || !name) {
       return c.json({ error: "Email, password, and name are required" }, 400);
     }
-    const emailValidation = validateInput(email, "email");
+    const emailValidation = validateInput2(email, "email");
     if (!emailValidation.valid) {
       logSecurityEvent("invalid_email_format", "low", { email });
       return c.json({ error: "Invalid email format" }, 400);
     }
-    const nameValidation = validateInput(name, "string", { minLength: 1, maxLength: 100 });
+    const nameValidation = validateInput2(name, "string", { minLength: 1, maxLength: 100 });
     if (!nameValidation.valid) {
       logSecurityEvent("invalid_name_format", "low", { name });
       return c.json({ error: "Name must be 1-100 characters" }, 400);
@@ -38623,7 +39112,7 @@ app.post("/make-server-dd877831/auth/login", async (c) => {
     if (!email || !password) {
       return c.json({ error: "Email and password are required" }, 400);
     }
-    const emailValidation = validateInput(email, "email");
+    const emailValidation = validateInput2(email, "email");
     if (!emailValidation.valid) {
       logSecurityEvent("invalid_login_email", "low", { ip });
       return c.json({ error: "Invalid credentials" }, 401);
@@ -38668,7 +39157,7 @@ app.post("/make-server-dd877831/auth/reset-password", async (c) => {
     if (!email) {
       return c.json({ error: "Email is required" }, 400);
     }
-    const emailValidation = validateInput(email, "email");
+    const emailValidation = validateInput2(email, "email");
     if (!emailValidation.valid) {
       return c.json({ success: true });
     }
@@ -38930,25 +39419,25 @@ app.post("/make-server-dd877831/listings", async (c) => {
   if (!user) return c.json({ error: "Unauthorized" }, 401);
   try {
     const { title, description, quantity, photos, lookingFor, expiresInDays } = await c.req.json();
-    const titleValidation = validateInput(title, "string", { minLength: 1, maxLength: 200 });
+    const titleValidation = validateInput2(title, "string", { minLength: 1, maxLength: 200 });
     if (!titleValidation.valid) {
       logSecurityEvent("invalid_listing_title", "low", { userId: user.id });
       return c.json({ error: "Title must be 1-200 characters" }, 400);
     }
-    const descValidation = validateInput(description, "string", { minLength: 0, maxLength: 2e3 });
+    const descValidation = validateInput2(description, "string", { minLength: 0, maxLength: 2e3 });
     if (!descValidation.valid) {
       return c.json({ error: "Description must be 0-2000 characters" }, 400);
     }
-    const quantityValidation = validateInput(quantity, "string", { minLength: 1, maxLength: 100 });
+    const quantityValidation = validateInput2(quantity, "string", { minLength: 1, maxLength: 100 });
     if (!quantityValidation.valid) {
       return c.json({ error: "Quantity must be specified" }, 400);
     }
-    const photosValidation = validateInput(photos || [], "array", { maxItems: 5 });
+    const photosValidation = validateInput2(photos || [], "array", { maxItems: 5 });
     if (!photosValidation.valid) {
       logSecurityEvent("invalid_photos_array", "low", { userId: user.id });
       return c.json({ error: "Maximum 5 photos allowed" }, 400);
     }
-    const lookingForValidation = validateInput(lookingFor || "", "string", { maxLength: 500 });
+    const lookingForValidation = validateInput2(lookingFor || "", "string", { maxLength: 500 });
     if (!lookingForValidation.valid) {
       return c.json({ error: "Looking for description must be 0-500 characters" }, 400);
     }
@@ -39146,6 +39635,11 @@ app.post("/make-server-dd877831/offers", async (c) => {
       }
       throw e;
     }
+    await sendPushToUser(listing.sellerId, {
+      title: "New offer on your listing",
+      body: `${offer.offeredProduce} for "${listing.title}"`,
+      link: `/listing/${listing.id}`
+    });
     return c.json({ success: true, offer: created });
   } catch (error) {
     console.error("Create offer error:", error);
@@ -39324,6 +39818,14 @@ app.post("/make-server-dd877831/chat/messages", async (c) => {
       return c.json({ error: "Unauthorized" }, 403);
     }
     const message2 = await insertMessage(threadId, user.id, content);
+    const recipients = thread.participants.filter((id) => id !== user.id);
+    await Promise.all(recipients.map(
+      (id) => sendPushToUser(id, {
+        title: thread.title || "New message",
+        body: content.length > 140 ? `${content.slice(0, 137)}\u2026` : content,
+        link: `/messages/${threadId}`
+      })
+    ));
     return c.json({ success: true, message: message2 });
   } catch (error) {
     console.error("Send message error:", error);
@@ -39558,11 +40060,11 @@ app.post("/make-server-dd877831/listings/draft-description", async (c) => {
   }
   try {
     const { title, notes } = await c.req.json();
-    const titleValidation = validateInput(title, "string", { minLength: 1, maxLength: 200 });
+    const titleValidation = validateInput2(title, "string", { minLength: 1, maxLength: 200 });
     if (!titleValidation.valid) {
       return c.json({ error: "Title must be 1-200 characters" }, 400);
     }
-    const notesValidation = validateInput(notes || "", "string", { maxLength: 500 });
+    const notesValidation = validateInput2(notes || "", "string", { maxLength: 500 });
     if (!notesValidation.valid) {
       return c.json({ error: "Notes must be 0-500 characters" }, 400);
     }

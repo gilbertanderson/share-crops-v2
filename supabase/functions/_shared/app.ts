@@ -4,6 +4,7 @@ import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { logger } from "hono/logger";
 import * as db from "./db.ts";
+import * as fcm from "./fcm.ts";
 import * as security from "./security.ts";
 import { createClient } from "@supabase/supabase-js";
 import Anthropic from "@anthropic-ai/sdk";
@@ -1060,6 +1061,13 @@ app.post("/make-server-dd877831/offers", async (c) => {
       throw e;
     }
 
+    // Notify the seller (best-effort; no-ops if push isn't configured).
+    await fcm.sendPushToUser(listing.sellerId, {
+      title: "New offer on your listing",
+      body: `${offer.offeredProduce} for "${listing.title}"`,
+      link: `/listing/${listing.id}`,
+    });
+
     return c.json({ success: true, offer: created });
   } catch (error) {
     console.error("Create offer error:", error);
@@ -1296,6 +1304,16 @@ app.post("/make-server-dd877831/chat/messages", async (c) => {
     // Inserts the message and updates the thread's last_message preview in one
     // place — no per-participant thread copies to fan out.
     const message = await db.insertMessage(threadId, user.id, content);
+
+    // Notify the other thread participants (best-effort; no-ops without push).
+    const recipients = thread.participants.filter((id: string) => id !== user.id);
+    await Promise.all(recipients.map((id: string) =>
+      fcm.sendPushToUser(id, {
+        title: thread.title || "New message",
+        body: content.length > 140 ? `${content.slice(0, 137)}…` : content,
+        link: `/messages/${threadId}`,
+      })
+    ));
 
     return c.json({ success: true, message });
   } catch (error) {

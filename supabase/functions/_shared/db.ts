@@ -795,3 +795,18 @@ export const savePushToken = async (userId: string, token: string) => {
     .upsert({ token, user_id: userId }, { onConflict: "token" });
   if (error) throw new Error(error.message);
 };
+
+export const getPushTokensForUser = async (userId: string): Promise<string[]> => {
+  const { data, error } = await db()
+    .from("push_tokens")
+    .select("token")
+    .eq("user_id", userId);
+  if (error) throw new Error(error.message);
+  return (data ?? []).map((r: any) => r.token);
+};
+
+// Drop a token FCM reports as stale/unregistered.
+export const deletePushToken = async (token: string) => {
+  const { error } = await db().from("push_tokens").delete().eq("token", token);
+  if (error) throw new Error(error.message);
+};
