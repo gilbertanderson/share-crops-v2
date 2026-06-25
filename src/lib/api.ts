@@ -329,4 +329,12 @@ export class API {
   static async uploadPhoto(file: File): Promise<{ url: string }> {
     return this.uploadFile('/upload', file);
   }
+
+  // Push — register this device's FCM token for the signed-in user.
+  static async registerPushToken(token: string): Promise<{ success: boolean }> {
+    return this.request('/push/register', {
+      method: 'POST',
+      body: JSON.stringify({ token }),
+    });
+  }
 }

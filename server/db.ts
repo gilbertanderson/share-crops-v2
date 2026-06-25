@@ -783,3 +783,13 @@ export const getAdminUserIds = async (): Promise<string[]> => {
   if (error) throw new Error(error.message);
   return (data ?? []).map((r: any) => r.id);
 };
+
+// ── push tokens (FCM web push device registration) ───────────────────────────
+// Upsert by token so re-registering the same device is idempotent; ON DELETE
+// CASCADE drops a user's tokens with their profile.
+export const savePushToken = async (userId: string, token: string) => {
+  const { error } = await db()
+    .from("push_tokens")
+    .upsert({ token, user_id: userId }, { onConflict: "token" });
+  if (error) throw new Error(error.message);
+};

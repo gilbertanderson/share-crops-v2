@@ -36712,6 +36712,10 @@ var getAdminUserIds = async () => {
   if (error) throw new Error(error.message);
   return (data ?? []).map((r) => r.id);
 };
+var savePushToken = async (userId, token) => {
+  const { error } = await db().from("push_tokens").upsert({ token, user_id: userId }, { onConflict: "token" });
+  if (error) throw new Error(error.message);
+};
 
 // server/security.ts
 var RATE_LIMIT_WINDOW = 6e4;
@@ -39600,6 +39604,21 @@ Write the listing description.`
   } catch (error) {
     console.error("draft-description error:", error);
     return c.json({ error: "Could not generate a description" }, 500);
+  }
+});
+app.post("/make-server-dd877831/push/register", async (c) => {
+  const user = await getAuthUser(c.req.header("Authorization"));
+  if (!user) return c.json({ error: "Unauthorized" }, 401);
+  try {
+    const { token } = await c.req.json();
+    if (!token || typeof token !== "string") {
+      return c.json({ error: "token is required" }, 400);
+    }
+    await savePushToken(user.id, token);
+    return c.json({ success: true });
+  } catch (error) {
+    console.error("Register push token error:", error);
+    return c.json({ error: "Failed to register push token" }, 500);
   }
 });
 

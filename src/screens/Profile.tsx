@@ -11,6 +11,7 @@ import { TomatoRow } from '@/components/atoms/Tomato';
 import { TomatoLoader } from '@/components/atoms/TomatoLoader';
 import { ImageWithFallback } from '@/components/atoms/ImageWithFallback';
 import { EditProfileSheet } from '@/components/modals/EditProfileSheet';
+import { requestPushToken } from '@/lib/firebaseMessaging';
 
 function RatingCard({ rating }: { rating: Rating }) {
   const { data: rater } = useQuery({
@@ -41,6 +42,7 @@ export default function Profile() {
   const qc = useQueryClient();
   const { data: me, isLoading } = useMe();
   const [showEdit, setShowEdit] = useState(false);
+  const [enablingPush, setEnablingPush] = useState(false);
 
   const communitiesQuery = useQuery({ queryKey: ['my-communities'], queryFn: () => API.getMyCommunities() });
   const communities = communitiesQuery.data?.communities ?? [];
@@ -183,7 +185,29 @@ export default function Profile() {
         )}
       </div>
 
-      <div style={{ padding: '0 16px 24px', textAlign: 'center' }}>
+      <div style={{ padding: '0 16px 24px', textAlign: 'center', display: 'flex', flexDirection: 'column', gap: 8 }}>
+        <button
+          className="btn btn-outline btn-sm"
+          disabled={enablingPush}
+          onClick={async () => {
+            setEnablingPush(true);
+            try {
+              const token = await requestPushToken();
+              if (!token) {
+                showToast('Notifications unavailable or permission denied');
+                return;
+              }
+              await API.registerPushToken(token);
+              showToast('Notifications enabled');
+            } catch {
+              showToast('Could not enable notifications');
+            } finally {
+              setEnablingPush(false);
+            }
+          }}
+        >
+          {enablingPush ? 'Enabling…' : 'Enable notifications'}
+        </button>
         <button className="btn btn-ghost btn-sm" onClick={logout}>Log out</button>
       </div>
 
