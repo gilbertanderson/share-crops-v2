@@ -1,0 +1,7 @@
+project_id = "xwjvtpzpufhuybylnwzx"
+
+# The app verifies bearer tokens itself as Firebase ID tokens (see
+# _shared/firebaseVerify.ts). Disable the gateway's Supabase-JWT check so Firebase
+# tokens reach the function instead of being rejected at the edge with 401.
+[functions.make-server-dd877831]
+verify_jwt = false
