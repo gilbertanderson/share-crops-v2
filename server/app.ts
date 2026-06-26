@@ -7,6 +7,7 @@ import { logger } from "hono/logger";
 import * as db from "./db.ts";
 import * as fcm from "./fcm.ts";
 import * as security from "./security.ts";
+import * as storage from "./storage.ts";
 import { createClient } from "@supabase/supabase-js";
 import Anthropic from "@anthropic-ai/sdk";
 import { getEnv } from "./env.ts";
@@ -1513,14 +1514,45 @@ app.post("/make-server-dd877831/upload", async (c) => {
       return c.json({ error: "No file provided" }, 400);
     }
 
+    // Enforce type/size/extension limits and reject path-traversal filenames
+    // before touching storage.
+    const uploadCheck = security.validateFileUpload(file.name, file.size, file.type);
+    if (!uploadCheck.valid) {
+      security.logSecurityEvent('invalid_file_upload', 'medium', {
+        userId: user.id,
+        reason: uploadCheck.error,
+        mimeType: file.type,
+        size: file.size,
+      });
+      return c.json({ error: uploadCheck.error || "Invalid file" }, 400);
+    }
+
+    // Never trust the client-provided name in the storage key: keep only a
+    // sanitized extension and generate the rest, scoped under the user's id.
+    const rawExt = file.name.toLowerCase().slice(file.name.lastIndexOf('.'));
+    const safeExt = /^\.[a-z0-9]{1,5}$/.test(rawExt) ? rawExt : '';
+    const key = `${user.id}/${crypto.randomUUID()}${safeExt}`;
+    const fileBuffer = await file.arrayBuffer();
+
+    // Preferred path: Netlify Blobs. Returns a STABLE same-origin serving URL
+    // (no signed-URL expiry to persist on the row). Falls back to Supabase
+    // Storage when Blobs isn't configured, preserving current behavior.
+    if (storage.isBlobsConfigured()) {
+      await storage.putImage(key, fileBuffer, file.type);
+      // Build an absolute URL on this API's own origin, derived from the
+      // incoming request so it's correct regardless of the mount prefix.
+      const reqUrl = new URL(c.req.url);
+      const servingPath = reqUrl.pathname.replace(/\/upload$/, `/images/${key}`);
+      const url = `${reqUrl.origin}${servingPath}`;
+      return c.json({ success: true, url, path: key });
+    }
+
     const supabase = getServiceRoleClient();
     const bucketName = STORAGE_BUCKET_NAME;
-    const fileName = `${user.id}/${crypto.randomUUID()}-${file.name}`;
 
-    const fileBuffer = await file.arrayBuffer();
-    const { data, error } = await supabase.storage
+    const { error } = await supabase.storage
       .from(bucketName)
-      .upload(fileName, fileBuffer, {
+      .upload(key, fileBuffer, {
         contentType: file.type,
         upsert: false
       });
@@ -1530,15 +1562,50 @@ app.post("/make-server-dd877831/upload", async (c) => {
       return c.json({ error: "Upload failed" }, 500);
     }
 
-    // Generate signed URL (valid for 1 year)
+    // Signed URL valid for 1 year. NOTE: these URLs are persisted on listing /
+    // profile rows, so the lifetime can't be shortened without a proxy/refresh
+    // mechanism — which is exactly what the Netlify Blobs path above provides.
     const { data: urlData } = await supabase.storage
       .from(bucketName)
-      .createSignedUrl(fileName, 31536000);
+      .createSignedUrl(key, 31536000);
 
-    return c.json({ success: true, url: urlData?.signedUrl, path: fileName });
+    return c.json({ success: true, url: urlData?.signedUrl, path: key });
   } catch (error) {
     console.error("Upload error:", error);
     return c.json({ error: "Upload failed" }, 500);
+  }
+});
+
+// Serves an image previously stored in Netlify Blobs by /upload. This is what
+// makes blob-backed URLs work from any host (including this Vercel function):
+// the persisted URL points here, and we stream the bytes back with a long
+// immutable cache lifetime (keys are content-addressed via a random UUID).
+//
+// Netlify Image CDN note: when this app is hosted ON Netlify, you can serve
+// optimized variants by pointing the Image CDN at this endpoint, e.g.
+// `/.netlify/images?url=/api/make-server-dd877831/images/<key>&w=600&fm=webp`.
+// The Image CDN is edge-served by Netlify and is unavailable on other hosts, so
+// it is intentionally not wired into the client here.
+app.get("/make-server-dd877831/images/:key{.+}", async (c) => {
+  if (!storage.isBlobsConfigured()) {
+    return c.json({ error: "Not found" }, 404);
+  }
+  try {
+    const key = c.req.param('key');
+    const image = await storage.getImage(key);
+    if (!image) {
+      return c.json({ error: "Not found" }, 404);
+    }
+    return new Response(image.data, {
+      status: 200,
+      headers: {
+        'Content-Type': image.contentType,
+        'Cache-Control': 'public, max-age=31536000, immutable',
+      },
+    });
+  } catch (error) {
+    console.error("Image fetch error:", error);
+    return c.json({ error: "Failed to load image" }, 500);
   }
 });
 
