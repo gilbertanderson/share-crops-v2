@@ -1,8 +1,16 @@
-import React, { lazy } from 'react';
+import React, { lazy, Suspense } from 'react';
 import { Navigate, Route, Routes } from 'react-router';
 import { useAuth } from '@/context/AuthContext';
 import { AppLayout } from '@/components/AppLayout';
 import { TomatoLoader } from '@/components/atoms/TomatoLoader';
+
+const FullScreenLoader = (
+  <div className="app">
+    <div className="center-fill">
+      <TomatoLoader size="lg" label="Share Crops" />
+    </div>
+  </div>
+);
 
 // Route-level code splitting — each screen is its own chunk.
 const Auth = lazy(() => import('@/screens/Auth'));
@@ -18,32 +26,31 @@ export default function App() {
   const { isAuthenticated, hasCompletedSetup, loading } = useAuth();
 
   if (loading) {
-    return (
-      <div className="app">
-        <div className="center-fill">
-          <TomatoLoader size="lg" label="Share Crops" />
-        </div>
-      </div>
-    );
+    return FullScreenLoader;
   }
 
-  // Unauthenticated → only the auth screen is reachable.
+  // Unauthenticated → only the auth screen is reachable. The lazy screens need a
+  // Suspense boundary while their chunk loads.
   if (!isAuthenticated) {
     return (
-      <Routes>
-        <Route path="/login" element={<Auth />} />
-        <Route path="*" element={<Navigate to="/login" replace />} />
-      </Routes>
+      <Suspense fallback={FullScreenLoader}>
+        <Routes>
+          <Route path="/login" element={<Auth />} />
+          <Route path="*" element={<Navigate to="/login" replace />} />
+        </Routes>
+      </Suspense>
     );
   }
 
   // Authenticated but no community yet → force setup.
   if (!hasCompletedSetup) {
     return (
-      <Routes>
-        <Route path="/community-setup" element={<CommunitySetup />} />
-        <Route path="*" element={<Navigate to="/community-setup" replace />} />
-      </Routes>
+      <Suspense fallback={FullScreenLoader}>
+        <Routes>
+          <Route path="/community-setup" element={<CommunitySetup />} />
+          <Route path="*" element={<Navigate to="/community-setup" replace />} />
+        </Routes>
+      </Suspense>
     );
   }
 

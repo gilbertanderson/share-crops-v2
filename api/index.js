@@ -38617,13 +38617,8 @@ var RATE_LIMIT_WINDOW = 6e4;
 var RATE_LIMIT_MAX_REQUESTS = 100;
 var rateLimitStore = /* @__PURE__ */ new Map();
 var AUTH_RATE_LIMIT_WINDOW = 15 * 60 * 1e3;
-var AUTH_RATE_LIMIT_MAX = 10;
-var authRateLimitStore = /* @__PURE__ */ new Map();
 var LOCKOUT_WINDOW = 15 * 60 * 1e3;
-var LOCKOUT_MAX_EMAIL = 5;
-var LOCKOUT_MAX_IP = 20;
 var LOCKOUT_DURATION = 15 * 60 * 1e3;
-var failedLoginStore = /* @__PURE__ */ new Map();
 var getClientIp = (req) => {
   const forwardedFor = req.header("x-forwarded-for");
   if (forwardedFor) {
@@ -38645,49 +38640,6 @@ var rateLimit = (req) => {
   const remaining = Math.max(0, RATE_LIMIT_MAX_REQUESTS - requests.length);
   const resetTime = requests.length > 0 ? requests[0] + RATE_LIMIT_WINDOW : now + RATE_LIMIT_WINDOW;
   return { allowed, remaining, resetTime };
-};
-var authRateLimit = (req) => {
-  const clientIp = getClientIp(req);
-  const now = Date.now();
-  const windowStart = now - AUTH_RATE_LIMIT_WINDOW;
-  let requests = authRateLimitStore.get(clientIp) || [];
-  requests = requests.filter((ts) => ts > windowStart);
-  const allowed = requests.length < AUTH_RATE_LIMIT_MAX;
-  if (allowed) requests.push(now);
-  authRateLimitStore.set(clientIp, requests);
-  const remaining = Math.max(0, AUTH_RATE_LIMIT_MAX - requests.length);
-  const resetTime = requests.length > 0 ? requests[0] + AUTH_RATE_LIMIT_WINDOW : now + AUTH_RATE_LIMIT_WINDOW;
-  return { allowed, remaining, resetTime };
-};
-var trackFailedLogin = (email, ip) => {
-  const now = Date.now();
-  const windowStart = now - LOCKOUT_WINDOW;
-  for (const [key, max] of [
-    [`email:${email.toLowerCase()}`, LOCKOUT_MAX_EMAIL],
-    [`ip:${ip}`, LOCKOUT_MAX_IP]
-  ]) {
-    const entry = failedLoginStore.get(key) ?? { count: 0, lockedUntil: 0, timestamps: [] };
-    entry.timestamps = entry.timestamps.filter((ts) => ts > windowStart);
-    entry.timestamps.push(now);
-    if (entry.timestamps.length >= max) {
-      entry.lockedUntil = now + LOCKOUT_DURATION;
-    }
-    entry.count = entry.timestamps.length;
-    failedLoginStore.set(key, entry);
-  }
-};
-var isLockedOut = (email, ip) => {
-  const now = Date.now();
-  for (const key of [`email:${email.toLowerCase()}`, `ip:${ip}`]) {
-    const entry = failedLoginStore.get(key);
-    if (entry && entry.lockedUntil > now) {
-      return { locked: true, retryAfter: Math.ceil((entry.lockedUntil - now) / 1e3) };
-    }
-  }
-  return { locked: false, retryAfter: 0 };
-};
-var resetFailedLogin = (email) => {
-  failedLoginStore.delete(`email:${email.toLowerCase()}`);
 };
 var validateInput2 = (value, type, options) => {
   if (value === null || value === void 0) {
@@ -38809,6 +38761,25 @@ var logSecurityEvent = (eventType, severity, details) => {
   };
   console.error(`[SECURITY] ${severity.toUpperCase()} - ${eventType}:`, event);
 };
+var validateFileUpload = (filename, size, mimeType) => {
+  const maxFileSize = 10 * 1024 * 1024;
+  const allowedMimes = ["image/jpeg", "image/png", "image/webp", "image/gif"];
+  const allowedExtensions = [".jpg", ".jpeg", ".png", ".webp", ".gif"];
+  if (size > maxFileSize) {
+    return { valid: false, error: `File size must be less than ${maxFileSize / 1024 / 1024}MB` };
+  }
+  if (!allowedMimes.includes(mimeType)) {
+    return { valid: false, error: `File type not allowed. Allowed types: ${allowedMimes.join(", ")}` };
+  }
+  const ext = filename.toLowerCase().slice(filename.lastIndexOf("."));
+  if (!allowedExtensions.includes(ext)) {
+    return { valid: false, error: "Invalid file extension" };
+  }
+  if (filename.includes("..") || filename.includes("/")) {
+    return { valid: false, error: "Invalid filename" };
+  }
+  return { valid: true };
+};
 
 // server/app.ts
 init_sdk();
@@ -38895,10 +38866,6 @@ var isAllowedOrigin = (origin) => {
   if (/^https:\/\/share-crops-v2[a-z0-9-]*\.vercel\.app$/.test(origin)) return origin;
   return null;
 };
-var DEFAULT_ORIGIN = (() => {
-  const origin = getEnv("DEFAULT_ORIGIN");
-  return origin?.trim() || "https://sharecrops.app";
-})();
 var API_PREFIX = `make-server-${APP_ID}`;
 var app = new Hono2();
 app.use("*", logger(console.log));
@@ -38937,10 +38904,6 @@ app.use("/*", async (c, next) => {
 var getServiceRoleClient = () => createClient(
   getEnv("SUPABASE_URL"),
   getEnv("SUPABASE_SERVICE_ROLE_KEY")
-);
-var getAnonClient = () => createClient(
-  getEnv("SUPABASE_URL"),
-  getEnv("SUPABASE_ANON_KEY")
 );
 var initStorage = async () => {
   const supabase = getServiceRoleClient();
@@ -39023,154 +38986,6 @@ var deleteListingRecords = async (listing) => {
 };
 app.get(`/${API_PREFIX}/health`, (c) => {
   return c.json({ status: "ok" });
-});
-app.post("/make-server-dd877831/auth/signup", async (c) => {
-  try {
-    const contentLength = parseInt(c.req.header("content-length") || "0", 10);
-    if (contentLength > 4096) {
-      logSecurityEvent("oversized_auth_request", "medium", {
-        ip: getClientIp(c.req),
-        size: contentLength
-      });
-      return c.json({ error: "Request too large" }, 413);
-    }
-    const { email, password, name } = await c.req.json();
-    if (!email || !password || !name) {
-      return c.json({ error: "Email, password, and name are required" }, 400);
-    }
-    const emailValidation = validateInput2(email, "email");
-    if (!emailValidation.valid) {
-      logSecurityEvent("invalid_email_format", "low", { email });
-      return c.json({ error: "Invalid email format" }, 400);
-    }
-    const nameValidation = validateInput2(name, "string", { minLength: 1, maxLength: 100 });
-    if (!nameValidation.valid) {
-      logSecurityEvent("invalid_name_format", "low", { name });
-      return c.json({ error: "Name must be 1-100 characters" }, 400);
-    }
-    if (password.length < 8 || !/[A-Z]/.test(password) || !/\d/.test(password)) {
-      return c.json({ error: "Password must be at least 8 characters with uppercase and numbers" }, 400);
-      console.log("Initializing mock data...");
-    }
-    const sqlSafety = validateQuerySafety(email + name);
-    if (!sqlSafety.safe) {
-      logSecurityEvent("sql_injection_attempt", "high", {
-        ip: getClientIp(c.req),
-        email: email.substring(0, 5)
-      });
-      return c.json({ error: "Invalid input detected" }, 400);
-    }
-    const supabase = getServiceRoleClient();
-    const { data, error } = await supabase.auth.admin.createUser({
-      email,
-      password,
-      user_metadata: { name },
-      email_confirm: true
-    });
-    if (error) {
-      console.error("Signup error:", error);
-      logSecurityEvent("signup_error", "medium", { error: error.message });
-      return c.json({ error: error.message }, 400);
-    }
-    await upsertProfile({
-      id: data.user.id,
-      email: sanitizeString(email),
-      name: sanitizeString(name),
-      bio: "",
-      socialUrl: "",
-      profilePhotoUrl: "",
-      role: email.toLowerCase() === ADMIN_EMAIL ? "admin" : "general"
-    });
-    logSecurityEvent("user_signup", "low", { userId: data.user.id });
-    return c.json({ success: true, userId: data.user.id });
-  } catch (error) {
-    console.error("Signup error:", error);
-    logSecurityEvent("signup_exception", "critical", { error: String(error) });
-    return c.json({ error: "Signup failed" }, 500);
-  }
-});
-app.post("/make-server-dd877831/auth/login", async (c) => {
-  try {
-    const contentLength = parseInt(c.req.header("content-length") || "0", 10);
-    if (contentLength > 4096) {
-      logSecurityEvent("oversized_auth_request", "medium", {
-        ip: getClientIp(c.req),
-        size: contentLength
-      });
-      return c.json({ error: "Request too large" }, 413);
-    }
-    const authLimit = authRateLimit(c.req);
-    if (!authLimit.allowed) {
-      c.header("Retry-After", Math.ceil((authLimit.resetTime - Date.now()) / 1e3).toString());
-      logSecurityEvent("auth_rate_limit_exceeded", "medium", {
-        ip: getClientIp(c.req)
-      });
-      return c.json({ error: "Too many login attempts. Please try again later." }, 429);
-    }
-    const { email, password } = await c.req.json();
-    const ip = getClientIp(c.req);
-    if (!email || !password) {
-      return c.json({ error: "Email and password are required" }, 400);
-    }
-    const emailValidation = validateInput2(email, "email");
-    if (!emailValidation.valid) {
-      logSecurityEvent("invalid_login_email", "low", { ip });
-      return c.json({ error: "Invalid credentials" }, 401);
-    }
-    const lockout = isLockedOut(email, ip);
-    if (lockout.locked) {
-      c.header("Retry-After", lockout.retryAfter.toString());
-      logSecurityEvent("lockout_enforced", "medium", {
-        ip,
-        email: email.substring(0, 3)
-      });
-      return c.json({ error: "Account temporarily locked due to too many failed attempts. Please try again later." }, 429);
-    }
-    const supabase = getAnonClient();
-    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
-    if (error) {
-      console.error("Login error:", error);
-      trackFailedLogin(email, ip);
-      await new Promise((resolve4) => setTimeout(resolve4, 500));
-      logSecurityEvent("login_failed", "low", {
-        ip,
-        email: email.substring(0, 5)
-      });
-      return c.json({ error: "Invalid credentials" }, 401);
-    }
-    resetFailedLogin(email);
-    logSecurityEvent("user_login", "low", { userId: data.user.id });
-    return c.json({
-      success: true,
-      accessToken: data.session.access_token,
-      userId: data.user.id
-    });
-  } catch (error) {
-    console.error("Login error:", error);
-    logSecurityEvent("login_exception", "critical", { error: String(error) });
-    return c.json({ error: "Login failed" }, 500);
-  }
-});
-app.post("/make-server-dd877831/auth/reset-password", async (c) => {
-  try {
-    const { email } = await c.req.json();
-    if (!email) {
-      return c.json({ error: "Email is required" }, 400);
-    }
-    const emailValidation = validateInput2(email, "email");
-    if (!emailValidation.valid) {
-      return c.json({ success: true });
-    }
-    const supabase = getAnonClient();
-    await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: `${c.req.header("Origin") || DEFAULT_ORIGIN}/reset-password`
-    });
-    logSecurityEvent("password_reset_requested", "low", { email: email.substring(0, 3) });
-    return c.json({ success: true });
-  } catch (error) {
-    console.error("Password reset error:", error);
-    return c.json({ success: true });
-  }
 });
 app.get("/make-server-dd877831/auth/me", async (c) => {
   const user = await getAuthUser(c.req.header("Authorization"));
@@ -39458,6 +39273,10 @@ app.post("/make-server-dd877831/listings", async (c) => {
     if (!community) {
       return c.json({ error: "You must join a community first" }, 400);
     }
+    const stillMember = await isMember(user.id, communityId);
+    if (!stillMember) {
+      return c.json({ error: "You must join a community first" }, 400);
+    }
     const listingId = crypto.randomUUID();
     const listing = {
       id: listingId,
@@ -39615,6 +39434,9 @@ app.post("/make-server-dd877831/offers", async (c) => {
     }
     if (listing.sellerId === user.id) {
       return c.json({ error: "You cannot make an offer on your own listing" }, 400);
+    }
+    if (listing.status !== "active" || isListingExpired(listing)) {
+      return c.json({ error: "This listing is no longer accepting offers" }, 400);
     }
     const offer = {
       id: crypto.randomUUID(),
@@ -39788,6 +39610,23 @@ app.post("/make-server-dd877831/chat/threads", async (c) => {
   if (!user) return c.json({ error: "Unauthorized" }, 401);
   try {
     const { listingId, otherUserId } = await c.req.json();
+    if (!listingId || !otherUserId) {
+      return c.json({ error: "listingId and otherUserId are required" }, 400);
+    }
+    if (otherUserId === user.id) {
+      return c.json({ error: "You cannot start a thread with yourself" }, 400);
+    }
+    const listing = await getListing(listingId);
+    if (!listing) {
+      return c.json({ error: "Listing not found" }, 404);
+    }
+    const otherProfile = await getProfile(otherUserId);
+    if (!otherProfile) {
+      return c.json({ error: "User not found" }, 404);
+    }
+    if (listing.sellerId !== user.id && listing.sellerId !== otherUserId) {
+      return c.json({ error: "Threads can only be started about a listing with its seller" }, 403);
+    }
     const dedupeKey = `${[user.id, otherUserId].sort().join(":")}:${listingId}`;
     const existingThread = await getThreadByDedupe(dedupeKey);
     if (existingThread) {
@@ -39893,6 +39732,13 @@ app.post("/make-server-dd877831/ratings", async (c) => {
     if (offer.status !== "completed") {
       return c.json({ error: "Can only rate completed exchanges" }, 400);
     }
+    if (user.id !== offer.buyerId && user.id !== offer.sellerId) {
+      logSecurityEvent("rating_authz_denied", "high", {
+        userId: user.id,
+        offerId
+      });
+      return c.json({ error: "You can only rate exchanges you were part of" }, 403);
+    }
     const ratedUserId = offer.sellerId === user.id ? offer.buyerId : offer.sellerId;
     const listing = await getListing(offer.listingId);
     const listingSnapshot = listing ? { id: listing.id, title: listing.title, photoUrl: listing.photos?.[0] ?? null } : null;
@@ -39990,9 +39836,21 @@ app.post("/make-server-dd877831/upload", async (c) => {
     if (!file) {
       return c.json({ error: "No file provided" }, 400);
     }
+    const uploadCheck = validateFileUpload(file.name, file.size, file.type);
+    if (!uploadCheck.valid) {
+      logSecurityEvent("invalid_file_upload", "medium", {
+        userId: user.id,
+        reason: uploadCheck.error,
+        mimeType: file.type,
+        size: file.size
+      });
+      return c.json({ error: uploadCheck.error || "Invalid file" }, 400);
+    }
     const supabase = getServiceRoleClient();
     const bucketName = STORAGE_BUCKET_NAME;
-    const fileName = `${user.id}/${crypto.randomUUID()}-${file.name}`;
+    const rawExt = file.name.toLowerCase().slice(file.name.lastIndexOf("."));
+    const safeExt = /^\.[a-z0-9]{1,5}$/.test(rawExt) ? rawExt : "";
+    const fileName = `${user.id}/${crypto.randomUUID()}${safeExt}`;
     const fileBuffer = await file.arrayBuffer();
     const { data, error } = await supabase.storage.from(bucketName).upload(fileName, fileBuffer, {
       contentType: file.type,

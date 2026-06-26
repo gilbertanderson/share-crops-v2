@@ -3,6 +3,24 @@ import type { User, Listing, Offer, Thread, Message, Rating, Community } from '@
 
 const API_BASE = (import.meta.env.VITE_FALLBACK_API_URL || '/api/make-server-dd877831').replace(/\/$/, '');
 
+// Error thrown by the API client. Carries the HTTP status so callers (and the
+// global 401 handler) can react to it.
+export class ApiError extends Error {
+  status: number;
+  constructor(message: string, status: number) {
+    super(message);
+    this.name = 'ApiError';
+    this.status = status;
+  }
+}
+
+// Registered by AuthContext so a 401 from any request can drive a logout +
+// redirect instead of leaving the user with a valid-looking but dead session.
+let onUnauthorized: (() => void) | null = null;
+export function setUnauthorizedHandler(handler: (() => void) | null) {
+  onUnauthorized = handler;
+}
+
 export class AuthManager {
   private static TOKEN_KEY = 'sharecrops_token';
   private static USER_KEY = 'sharecrops_user';
@@ -71,11 +89,15 @@ export class API {
     }
 
     if (!response.ok) {
-      throw new Error(
+      if (response.status === 401) {
+        onUnauthorized?.();
+      }
+      throw new ApiError(
         data?.error ||
         data?.message ||
         data?.msg ||
-        (response.status === 401 ? 'Session expired. Please log in again.' : `Request failed (${response.status})`)
+        (response.status === 401 ? 'Session expired. Please log in again.' : `Request failed (${response.status})`),
+        response.status
       );
     }
 

@@ -64,11 +64,6 @@ const isAllowedOrigin = (origin: string | undefined | null): string | null => {
   return null;
 };
 
-const DEFAULT_ORIGIN = (() => {
-  const origin = getEnv('DEFAULT_ORIGIN');
-  return origin?.trim() || 'https://sharecrops.app';
-})();
-
 const API_PREFIX = `make-server-${APP_ID}`;
 
 const app = new Hono();
@@ -121,11 +116,6 @@ app.use('/*', async (c, next) => {
 const getServiceRoleClient = () => createClient(
   getEnv('SUPABASE_URL')!,
   getEnv('SUPABASE_SERVICE_ROLE_KEY')!,
-);
-
-const getAnonClient = () => createClient(
-  getEnv('SUPABASE_URL')!,
-  getEnv('SUPABASE_ANON_KEY')!,
 );
 
 // Initialize storage bucket
@@ -243,194 +233,13 @@ app.get(`/${API_PREFIX}/health`, (c) => {
 
 // ===== AUTH ROUTES =====
 
-app.post("/make-server-dd877831/auth/signup", async (c) => {
-  try {
-    // Body-size guard — reject before JSON parsing to prevent memory exhaustion
-    const contentLength = parseInt(c.req.header('content-length') || '0', 10);
-    if (contentLength > 4096) {
-      security.logSecurityEvent('oversized_auth_request', 'medium', {
-        ip: security.getClientIp(c.req),
-        size: contentLength,
-      });
-      return c.json({ error: 'Request too large' }, 413);
-    }
-
-    const { email, password, name } = await c.req.json();
-
-    // Input validation
-    if (!email || !password || !name) {
-      return c.json({ error: "Email, password, and name are required" }, 400);
-    }
-
-    // Validate email format
-    const emailValidation = security.validateInput(email, 'email');
-    if (!emailValidation.valid) {
-      security.logSecurityEvent('invalid_email_format', 'low', { email });
-      return c.json({ error: "Invalid email format" }, 400);
-    }
-
-    // Validate name
-    const nameValidation = security.validateInput(name, 'string', { minLength: 1, maxLength: 100 });
-    if (!nameValidation.valid) {
-      security.logSecurityEvent('invalid_name_format', 'low', { name });
-      return c.json({ error: "Name must be 1-100 characters" }, 400);
-    }
-
-    // Validate password strength (min 8 chars, at least 1 uppercase, 1 number)
-    if (password.length < 8 || !/[A-Z]/.test(password) || !/\d/.test(password)) {
-      return c.json({ error: "Password must be at least 8 characters with uppercase and numbers" }, 400);
-        console.log('Initializing mock data...');
-    }
-
-    // Prevent SQL injection patterns
-    const sqlSafety = security.validateQuerySafety(email + name);
-    if (!sqlSafety.safe) {
-      security.logSecurityEvent('sql_injection_attempt', 'high', {
-        ip: security.getClientIp(c.req),
-        email: email.substring(0, 5),
-      });
-      return c.json({ error: "Invalid input detected" }, 400);
-    }
-
-    const supabase = getServiceRoleClient();
-    const { data, error } = await supabase.auth.admin.createUser({
-      email,
-      password,
-      user_metadata: { name },
-      email_confirm: true
-    });
-
-    if (error) {
-      console.error("Signup error:", error);
-      security.logSecurityEvent('signup_error', 'medium', { error: error.message });
-      return c.json({ error: error.message }, 400);
-    }
-
-    // Sanitize user data before storing. rating/ratingCount are computed by
-    // profiles_view, so they're not columns here.
-    await db.upsertProfile({
-      id: data.user.id,
-      email: security.sanitizeString(email),
-      name: security.sanitizeString(name),
-      bio: '',
-      socialUrl: '',
-      profilePhotoUrl: '',
-      role: email.toLowerCase() === ADMIN_EMAIL ? 'admin' : 'general',
-    });
-
-    security.logSecurityEvent('user_signup', 'low', { userId: data.user.id });
-    return c.json({ success: true, userId: data.user.id });
-  } catch (error) {
-    console.error("Signup error:", error);
-    security.logSecurityEvent('signup_exception', 'critical', { error: String(error) });
-    return c.json({ error: "Signup failed" }, 500);
-  }
-});
-
-app.post("/make-server-dd877831/auth/login", async (c) => {
-  try {
-    // Body-size guard — reject before JSON parsing to prevent memory exhaustion
-    const contentLength = parseInt(c.req.header('content-length') || '0', 10);
-    if (contentLength > 4096) {
-      security.logSecurityEvent('oversized_auth_request', 'medium', {
-        ip: security.getClientIp(c.req),
-        size: contentLength,
-      });
-      return c.json({ error: 'Request too large' }, 413);
-    }
-
-    // Auth-specific rate limit (tighter than global 100/min)
-    const authLimit = security.authRateLimit(c.req);
-    if (!authLimit.allowed) {
-      c.header('Retry-After', Math.ceil((authLimit.resetTime - Date.now()) / 1000).toString());
-      security.logSecurityEvent('auth_rate_limit_exceeded', 'medium', {
-        ip: security.getClientIp(c.req),
-      });
-      return c.json({ error: 'Too many login attempts. Please try again later.' }, 429);
-    }
-
-    const { email, password } = await c.req.json();
-    const ip = security.getClientIp(c.req);
-
-    // Input validation
-    if (!email || !password) {
-      return c.json({ error: "Email and password are required" }, 400);
-    }
-
-    // Validate email format
-    const emailValidation = security.validateInput(email, 'email');
-    if (!emailValidation.valid) {
-      security.logSecurityEvent('invalid_login_email', 'low', { ip });
-      return c.json({ error: "Invalid credentials" }, 401);
-    }
-
-    // Per-email / per-IP lockout check
-    const lockout = security.isLockedOut(email, ip);
-    if (lockout.locked) {
-      c.header('Retry-After', lockout.retryAfter.toString());
-      security.logSecurityEvent('lockout_enforced', 'medium', {
-        ip,
-        email: email.substring(0, 3),
-      });
-      return c.json({ error: 'Account temporarily locked due to too many failed attempts. Please try again later.' }, 429);
-    }
-
-    const supabase = getAnonClient();
-    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
-
-    if (error) {
-      console.error("Login error:", error);
-      security.trackFailedLogin(email, ip);
-      // Artificial delay: uniform response time prevents timing-based enumeration
-      await new Promise((resolve) => setTimeout(resolve, 500));
-      security.logSecurityEvent('login_failed', 'low', {
-        ip,
-        email: email.substring(0, 5),
-      });
-      return c.json({ error: "Invalid credentials" }, 401);
-    }
-
-    security.resetFailedLogin(email);
-    security.logSecurityEvent('user_login', 'low', { userId: data.user.id });
-    return c.json({
-      success: true,
-      accessToken: data.session.access_token,
-      userId: data.user.id
-    });
-  } catch (error) {
-    console.error("Login error:", error);
-    security.logSecurityEvent('login_exception', 'critical', { error: String(error) });
-    return c.json({ error: "Login failed" }, 500);
-  }
-});
-
-app.post("/make-server-dd877831/auth/reset-password", async (c) => {
-  try {
-    const { email } = await c.req.json();
-
-    if (!email) {
-      return c.json({ error: "Email is required" }, 400);
-    }
-
-    const emailValidation = security.validateInput(email, 'email');
-    if (!emailValidation.valid) {
-      // Return success even on invalid email to avoid user enumeration
-      return c.json({ success: true });
-    }
-
-    const supabase = getAnonClient();
-    await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: `${c.req.header('Origin') || DEFAULT_ORIGIN}/reset-password`,
-    });
-
-    // Always return success to avoid leaking whether email exists
-    security.logSecurityEvent('password_reset_requested', 'low', { email: email.substring(0, 3) });
-    return c.json({ success: true });
-  } catch (error) {
-    console.error("Password reset error:", error);
-    return c.json({ success: true }); // Still return success to avoid enumeration
-  }
-});
+// Signup, login, and password reset are handled entirely by Firebase Auth in
+// the browser (see src/lib/firebaseAuth.ts). The legacy Supabase-backed
+// /auth/signup, /auth/login, and /auth/reset-password endpoints were removed:
+// they created a parallel Supabase identity with the service role and issued
+// Supabase access tokens that this API (which verifies Firebase ID tokens)
+// cannot consume — dead but exploitable surface for credential stuffing and
+// user enumeration. The only auth endpoint the app uses is GET /auth/me below.
 
 app.get("/make-server-dd877831/auth/me", async (c) => {
   const user = await getAuthUser(c.req.header('Authorization'));
@@ -810,6 +619,13 @@ app.post("/make-server-dd877831/listings", async (c) => {
       return c.json({ error: "You must join a community first" }, 400);
     }
 
+    // Guard against a stale active_community_id (e.g. after being removed from a
+    // community) letting a user post into a community they no longer belong to.
+    const stillMember = await db.isMember(user.id, communityId);
+    if (!stillMember) {
+      return c.json({ error: "You must join a community first" }, 400);
+    }
+
     const listingId = crypto.randomUUID();
     const listing = {
       id: listingId,
@@ -1014,6 +830,11 @@ app.post("/make-server-dd877831/offers", async (c) => {
 
     if (listing.sellerId === user.id) {
       return c.json({ error: "You cannot make an offer on your own listing" }, 400);
+    }
+
+    // Don't allow offers on listings that are no longer open for barter.
+    if (listing.status !== 'active' || isListingExpired(listing)) {
+      return c.json({ error: "This listing is no longer accepting offers" }, 400);
     }
 
     const offer = {
@@ -1242,6 +1063,33 @@ app.post("/make-server-dd877831/chat/threads", async (c) => {
   try {
     const { listingId, otherUserId } = await c.req.json();
 
+    if (!listingId || !otherUserId) {
+      return c.json({ error: "listingId and otherUserId are required" }, 400);
+    }
+
+    if (otherUserId === user.id) {
+      return c.json({ error: "You cannot start a thread with yourself" }, 400);
+    }
+
+    // The listing and the other participant must both exist, and the thread has
+    // to be anchored to that listing: exactly one of the two participants must
+    // be the listing's seller. Without these checks any authenticated user
+    // could open DM threads with arbitrary user IDs (and trigger push
+    // notifications on them).
+    const listing = await db.getListing(listingId);
+    if (!listing) {
+      return c.json({ error: "Listing not found" }, 404);
+    }
+
+    const otherProfile = await db.getProfile(otherUserId);
+    if (!otherProfile) {
+      return c.json({ error: "User not found" }, 404);
+    }
+
+    if (listing.sellerId !== user.id && listing.sellerId !== otherUserId) {
+      return c.json({ error: "Threads can only be started about a listing with its seller" }, 403);
+    }
+
     // Dedupe on the same composite the KV id encoded: sorted users + listing.
     const dedupeKey = `${[user.id, otherUserId].sort().join(':')}:${listingId}`;
     const existingThread = await db.getThreadByDedupe(dedupeKey);
@@ -1380,6 +1228,18 @@ app.post("/make-server-dd877831/ratings", async (c) => {
       return c.json({ error: "Can only rate completed exchanges" }, 400);
     }
 
+    // Only the two parties to the exchange may rate it. Without this check any
+    // authenticated user could rate an arbitrary completed offer, and a
+    // third-party caller would (via the ternary below) be recorded as rating
+    // the seller.
+    if (user.id !== offer.buyerId && user.id !== offer.sellerId) {
+      security.logSecurityEvent('rating_authz_denied', 'high', {
+        userId: user.id,
+        offerId,
+      });
+      return c.json({ error: "You can only rate exchanges you were part of" }, 403);
+    }
+
     // Determine who is being rated
     const ratedUserId = offer.sellerId === user.id ? offer.buyerId : offer.sellerId;
 
@@ -1513,9 +1373,26 @@ app.post("/make-server-dd877831/upload", async (c) => {
       return c.json({ error: "No file provided" }, 400);
     }
 
+    // Enforce type/size/extension limits and reject path-traversal filenames
+    // before touching storage.
+    const uploadCheck = security.validateFileUpload(file.name, file.size, file.type);
+    if (!uploadCheck.valid) {
+      security.logSecurityEvent('invalid_file_upload', 'medium', {
+        userId: user.id,
+        reason: uploadCheck.error,
+        mimeType: file.type,
+        size: file.size,
+      });
+      return c.json({ error: uploadCheck.error || "Invalid file" }, 400);
+    }
+
     const supabase = getServiceRoleClient();
     const bucketName = STORAGE_BUCKET_NAME;
-    const fileName = `${user.id}/${crypto.randomUUID()}-${file.name}`;
+    // Never trust the client-provided name in the storage key: keep only a
+    // sanitized extension and generate the rest, scoped under the user's id.
+    const rawExt = file.name.toLowerCase().slice(file.name.lastIndexOf('.'));
+    const safeExt = /^\.[a-z0-9]{1,5}$/.test(rawExt) ? rawExt : '';
+    const fileName = `${user.id}/${crypto.randomUUID()}${safeExt}`;
 
     const fileBuffer = await file.arrayBuffer();
     const { data, error } = await supabase.storage
@@ -1530,7 +1407,9 @@ app.post("/make-server-dd877831/upload", async (c) => {
       return c.json({ error: "Upload failed" }, 500);
     }
 
-    // Generate signed URL (valid for 1 year)
+    // Signed URL valid for 1 year. NOTE: these URLs are persisted on listing /
+    // profile rows, so the lifetime can't be shortened without a proxy/refresh
+    // mechanism — tracked separately from this security pass.
     const { data: urlData } = await supabase.storage
       .from(bucketName)
       .createSignedUrl(fileName, 31536000);
