@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import type { User } from 'firebase/auth';
-import { API, AuthManager } from '@/lib/api';
+import { API, AuthManager, setUnauthorizedHandler } from '@/lib/api';
 import { onAuthChange, logout as firebaseLogout } from '@/lib/firebaseAuth';
 
 const INACTIVITY_TIMEOUT_MS = 30 * 60 * 1000; // 30 minutes
@@ -87,6 +87,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     });
     return unsubscribe;
   }, [applyUser]);
+
+  // Any 401 from the API means the session is no longer valid server-side
+  // (expired/rejected token); sign out so the app falls back to the login
+  // screen instead of repeatedly issuing failing requests.
+  useEffect(() => {
+    setUnauthorizedHandler(() => logout());
+    return () => setUnauthorizedHandler(null);
+  }, [logout]);
 
   // Inactivity auto-logout: reset timer on user activity; logout after 30 min idle
   const inactivityTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
