@@ -25,8 +25,12 @@ export function AppLayout() {
           <Outlet />
         </Suspense>
       </div>
-      {showTabBar && <InstallPrompt />}
-      {showTabBar && <BottomNav />}
+      {showTabBar && (
+        <div className="app-dock">
+          <InstallPrompt />
+          <BottomNav />
+        </div>
+      )}
     </div>
   );
 }
