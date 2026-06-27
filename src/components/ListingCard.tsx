@@ -37,8 +37,8 @@ export function ListingCard({
           <span className="zip-badge">{listing.zipCode}</span>
         </div>
         {rank && <div className="listing-rank-line">{Icon.bolt(11)} Community Rank #{rank}</div>}
-        <div className="listing-desc">{listing.description}</div>
         {listing.quantity && density !== 'list' && <div className="listing-qty">Qty: {listing.quantity}</div>}
+        <div className="listing-desc">{listing.description}</div>
         {seller && <TomatoRow rating={seller.rating} count={seller.ratingCount} variant={ratingVariant} />}
       </div>
     </div>

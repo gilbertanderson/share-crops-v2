@@ -148,6 +148,8 @@ a { color: inherit; }
 
 /* Bottom nav */
 .bottom-nav {
+  position: relative;
+  z-index: 10;
   display: flex;
   background: var(--card);
   border-top: 1px solid var(--border);
@@ -383,7 +385,7 @@ textarea.input { resize: none; min-height: 80px; line-height: 1.45; }
 .seller-card { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 14px; display: flex; align-items: center; gap: 12px; margin-top: 18px; }
 .seller-card .name { font-weight: 600; font-size: 14px; }
 
-.action-bar { display: flex; gap: 8px; padding: 14px 16px 18px; background: linear-gradient(to top, var(--background) 70%, rgba(238,244,239,0)); position: sticky; bottom: 0; }
+.action-bar { display: flex; gap: 8px; padding: 14px 16px 18px; background: linear-gradient(to top, var(--background) 70%, rgba(238,244,239,0)); position: sticky; bottom: 0; z-index: 10; }
 .action-bar .btn { flex: 1; }
 
 /* Modal / sheet — fixed to viewport for the real app */

@@ -86,13 +86,13 @@ export default function ListingDetail() {
           {listing.quantity && (
             <p style={{ fontSize: 14, color: 'var(--muted-foreground)', marginTop: 12, fontWeight: 500 }}>Quantity: {listing.quantity}</p>
           )}
-          <p style={{ fontSize: 14, lineHeight: 1.55, marginTop: 14 }}>{listing.description}</p>
           {listing.lookingFor && (
-            <div className="looking-for">
+            <div className="looking-for" style={{ marginTop: 14 }}>
               <div className="label">Looking for</div>
               <div className="value">{listing.lookingFor}</div>
             </div>
           )}
+          <p style={{ fontSize: 14, lineHeight: 1.55, marginTop: 14 }}>{listing.description}</p>
           <p style={{ fontSize: 12, color: 'var(--muted-foreground)', marginTop: 14 }}>
             Expires in {daysLeft(listing.expiresAt)} days
           </p>
