@@ -1,7 +1,15 @@
 // Share Crops service worker — app-shell offline support.
 // Push handling lives in firebase-messaging-sw.js (separate FCM SW).
-const CACHE = 'sharecrops-shell-v1';
-const SHELL = ['/', '/index.html', '/manifest.webmanifest', '/icon.svg'];
+const CACHE = 'sharecrops-shell-v2';
+const SHELL = [
+  '/',
+  '/index.html',
+  '/offline.html',
+  '/manifest.webmanifest',
+  '/icon.svg',
+  '/icon-192.png',
+  '/icon-512.png',
+];
 
 self.addEventListener('install', (event) => {
   event.waitUntil(
@@ -15,6 +23,10 @@ self.addEventListener('activate', (event) => {
       .then((keys) => Promise.all(keys.filter((k) => k !== CACHE).map((k) => caches.delete(k))))
       .then(() => self.clients.claim()),
   );
+});
+
+self.addEventListener('message', (event) => {
+  if (event.data?.type === 'SKIP_WAITING') self.skipWaiting();
 });
 
 self.addEventListener('fetch', (event) => {
@@ -31,9 +43,14 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // SPA navigations: network-first, fall back to the cached shell when offline.
+  // SPA navigations: network-first, fall back to cached shell when offline.
   if (request.mode === 'navigate') {
-    event.respondWith(fetch(request).catch(() => caches.match('/index.html')));
+    event.respondWith(
+      fetch(request)
+        .catch(() =>
+          caches.match('/index.html').then((hit) => hit || caches.match('/offline.html')),
+        ),
+    );
     return;
   }
 
@@ -42,6 +59,7 @@ self.addEventListener('fetch', (event) => {
     caches.match(request).then((hit) =>
       hit ||
       fetch(request).then((res) => {
+        if (!res.ok) return res;
         const copy = res.clone();
         caches.open(CACHE).then((c) => c.put(request, copy));
         return res;

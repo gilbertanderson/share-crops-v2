@@ -12,6 +12,8 @@ import { TomatoLoader } from '@/components/atoms/TomatoLoader';
 import { ImageWithFallback } from '@/components/atoms/ImageWithFallback';
 import { EditProfileSheet } from '@/components/modals/EditProfileSheet';
 import { requestPushToken } from '@/lib/firebaseMessaging';
+import { InstallPrompt } from '@/components/pwa/InstallPrompt';
+import { usePwaInstall } from '@/hooks/usePwaInstall';
 
 function RatingCard({ rating }: { rating: Rating }) {
   const { data: rater } = useQuery({
@@ -42,6 +44,7 @@ export default function Profile() {
   const qc = useQueryClient();
   const { data: me, isLoading } = useMe();
   const [showEdit, setShowEdit] = useState(false);
+  const { isInstalled, canInstall, showIosInstructions } = usePwaInstall();
 
   const communitiesQuery = useQuery({ queryKey: ['my-communities'], queryFn: () => API.getMyCommunities() });
   const communities = communitiesQuery.data?.communities ?? [];
@@ -193,6 +196,12 @@ export default function Profile() {
           ratings.map((r) => <RatingCard key={r.id} rating={r} />)
         )}
       </div>
+
+      {!isInstalled && (canInstall || showIosInstructions) && (
+        <div style={{ padding: '0 16px 16px' }}>
+          <InstallPrompt variant="card" />
+        </div>
+      )}
 
       <div style={{ padding: '0 16px 24px', textAlign: 'center', display: 'flex', flexDirection: 'column', gap: 8, maxWidth: 'fit-content', alignSelf: 'center' }}>
         <button
