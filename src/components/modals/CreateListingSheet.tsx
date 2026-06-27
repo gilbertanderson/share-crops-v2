@@ -73,8 +73,6 @@ export function CreateListingSheet({ onClose }: { onClose: () => void }) {
           <input className="input" placeholder="10 lbs" value={qty} onChange={(e) => setQty(e.target.value)} style={{ marginTop: 6 }} />
         </div>
       </div>
-      <label className="field-label" style={{ marginTop: 12 }}>Looking for</label>
-      <input className="input" placeholder="eggs, bread" value={look} onChange={(e) => setLook(e.target.value)} style={{ marginTop: 6 }} />
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 12 }}>
         <label className="field-label">Description</label>
         <button
@@ -102,6 +100,8 @@ export function CreateListingSheet({ onClose }: { onClose: () => void }) {
           {uploading ? '…' : Icon.plus(28)}
         </button>
       </div>
+      <label className="field-label" style={{ marginTop: 12 }}>Looking for</label>
+      <input className="input" placeholder="eggs, bread" value={look} onChange={(e) => setLook(e.target.value)} style={{ marginTop: 6 }} />
       <label className="field-label" style={{ marginTop: 12 }}>Expires in</label>
       <div className="segmented" style={{ marginTop: 6 }}>
         {[3, 7, 14].map((d) => (
