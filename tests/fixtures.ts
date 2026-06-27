@@ -104,8 +104,23 @@ async function dispatch(route: Route) {
     const uid = path.split('/listings/user/')[1];
     return json(route, { listings: LISTINGS.filter((l) => l.sellerId === uid) });
   }
-  if (/^\/listings\/[^/]+$/.test(path)) return json(route, { listing: LISTINGS[0] });
-  if (path.startsWith('/listings')) return json(route, { listings: LISTINGS });
+  if (/^\/listings\/[^/]+$/.test(path) && route.request().method() === 'GET') {
+    return json(route, { listing: LISTINGS[0] });
+  }
+  if (path === '/listings/draft-description' && route.request().method() === 'POST') {
+    const body = route.request().postDataJSON() as { title?: string; notes?: string };
+    const title = body?.title ?? '';
+    return json(route, {
+      description: `Fresh ${title.toLowerCase()} from our garden, picked this morning.`,
+      usage: { inputTokens: 10, cacheCreationInputTokens: 0, cacheReadInputTokens: 0, outputTokens: 20 },
+    });
+  }
+  if (path.startsWith('/listings') && route.request().method() === 'GET') {
+    return json(route, { listings: LISTINGS });
+  }
+  if (path.startsWith('/listings') && route.request().method() === 'POST') {
+    return json(route, { listing: LISTINGS[0] });
+  }
   if (path.startsWith('/profile/')) return json(route, { profile: ME });
   return json(route, {});
 }
@@ -121,6 +136,7 @@ export async function mockBackend(page: Page, opts: { primaryFails?: boolean } =
     return dispatch(route);
   });
   await page.route('**/fallback.test/api/make-server-dd877831/**', dispatch);
+  await page.route('**/api/make-server-dd877831/**', dispatch);
 }
 
 /** Seed an auth token so the app boots into the authenticated shell. */

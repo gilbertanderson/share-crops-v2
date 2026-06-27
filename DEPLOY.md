@@ -38,6 +38,7 @@ fallback stays useful even if the Edge Functions runtime is down.
 | `CORS_ORIGINS` | comma-separated allowed origins, e.g. `https://<app>.vercel.app,http://localhost:5173,http://localhost:4321` | no |
 | `DEFAULT_ORIGIN` | e.g. `https://<app>.vercel.app` | no |
 | `ANTHROPIC_API_KEY` | **required for AI listing drafts** — Anthropic API key (`sk-ant-...`) | **yes** |
+| `ANTHROPIC_DRAFT_MODEL` | optional — defaults to `claude-haiku-4-5-20251001` | no |
 | `SKIP_INIT` | **Vercel only:** `true` (skips re-seeding on cold starts) | no |
 
 > The service-role key is **not** in this repo and must never be committed.
