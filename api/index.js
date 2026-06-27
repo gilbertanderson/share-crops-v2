@@ -39006,6 +39006,8 @@ app.get("/make-server-dd877831/auth/me", async (c) => {
       role: user.email.toLowerCase() === ADMIN_EMAIL ? "admin" : "general"
     });
     logSecurityEvent("oauth_user_provisioned", "low", { userId: user.id });
+  } else if (user.email.toLowerCase() === ADMIN_EMAIL && normalizeUserRole(profile.role) !== "admin") {
+    profile = await updateProfile(user.id, { role: "admin" });
   }
   return c.json({ user: profile });
 });
@@ -39914,7 +39916,7 @@ app.post("/make-server-dd877831/listings/draft-description", async (c) => {
   if (!user) return c.json({ error: "Unauthorized" }, 401);
   const anthropic = getAnthropic();
   if (!anthropic) {
-    return c.json({ error: "AI assistant is not configured" }, 503);
+    return c.json({ error: "AI assistant is not configured \u2014 set ANTHROPIC_API_KEY on the server" }, 503);
   }
   try {
     const { title, notes } = await c.req.json();
@@ -39963,7 +39965,9 @@ Write the listing description.`
     });
   } catch (error) {
     console.error("draft-description error:", error);
-    return c.json({ error: "Could not generate a description" }, 500);
+    const status = typeof error?.status === "number" ? error.status : 500;
+    const message2 = status === 401 || status === 403 ? "AI assistant authentication failed \u2014 check ANTHROPIC_API_KEY" : "Could not generate a description";
+    return c.json({ error: message2 }, status >= 400 && status < 600 ? status : 500);
   }
 });
 app.post("/make-server-dd877831/push/register", async (c) => {

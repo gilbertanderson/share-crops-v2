@@ -3,6 +3,7 @@ import { useNavigate, useParams } from 'react-router';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { API } from '@/lib/api';
 import { useMe } from '@/hooks/useMe';
+import { useAuth } from '@/context/AuthContext';
 import { isProduceInSeason } from '@/lib/seasonalProduce';
 import { Icon } from '@/components/atoms/Icon';
 import { Avatar } from '@/components/atoms/Avatar';
@@ -20,6 +21,7 @@ export default function ListingDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
   const { data: me } = useMe();
+  const { isAdmin } = useAuth();
   const { showToast } = useToast();
   const qc = useQueryClient();
   const [showOffer, setShowOffer] = useState(false);
@@ -64,6 +66,8 @@ export default function ListingDetail() {
   }
 
   const isMine = me?.id === listing.sellerId;
+  const canDelete = isMine || isAdmin;
+  const canTransact = !isMine && listing.status === 'active';
   const inSeason = isProduceInSeason(listing.title, listing.description);
   const seller = listing.seller;
 
@@ -110,19 +114,31 @@ export default function ListingDetail() {
         </div>
       </div>
 
-      {!isMine && listing.status === 'active' && (
+      {(canDelete || canTransact) && (
         <div className="action-bar">
-          <button className="btn btn-outline" disabled={startThread.isPending} onClick={() => startThread.mutate()}>
-            {Icon.message} Message
-          </button>
-          <button className="btn btn-primary" onClick={() => setShowOffer(true)}>Make Offer</button>
-        </div>
-      )}
-      {isMine && (
-        <div className="action-bar">
-          <button className="btn btn-error-outline" style={{ flex: 1 }} disabled={remove.isPending} onClick={() => remove.mutate()}>
-            {remove.isPending ? 'Deleting…' : 'Delete Listing'}
-          </button>
+          {canTransact && (
+            <>
+              <button className="btn btn-outline" disabled={startThread.isPending} onClick={() => startThread.mutate()}>
+                {Icon.message} Message
+              </button>
+              <button className="btn btn-primary" onClick={() => setShowOffer(true)}>Make Offer</button>
+            </>
+          )}
+          {canDelete && (
+            <button
+              className="btn btn-error-outline"
+              style={{ flex: canTransact ? undefined : 1 }}
+              disabled={remove.isPending}
+              onClick={() => {
+                const prompt = isAdmin && !isMine
+                  ? `Remove "${listing.title}" by ${seller?.name ?? 'this neighbor'}? This cannot be undone.`
+                  : 'Delete this listing? This cannot be undone.';
+                if (window.confirm(prompt)) remove.mutate();
+              }}
+            >
+              {remove.isPending ? 'Deleting…' : isAdmin && !isMine ? 'Delete (admin)' : 'Delete Listing'}
+            </button>
+          )}
         </div>
       )}
 
