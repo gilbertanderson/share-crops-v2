@@ -265,6 +265,11 @@ app.get("/make-server-dd877831/auth/me", async (c) => {
       role: user.email.toLowerCase() === ADMIN_EMAIL ? 'admin' : 'general',
     });
     security.logSecurityEvent('oauth_user_provisioned', 'low', { userId: user.id });
+  } else if (
+    user.email.toLowerCase() === ADMIN_EMAIL &&
+    normalizeUserRole(profile.role) !== 'admin'
+  ) {
+    profile = await db.updateProfile(user.id, { role: 'admin' });
   }
 
   return c.json({ user: profile });
