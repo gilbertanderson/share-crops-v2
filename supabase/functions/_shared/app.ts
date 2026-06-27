@@ -1628,7 +1628,7 @@ app.post("/make-server-dd877831/listings/draft-description", async (c) => {
 
   const anthropic = getAnthropic();
   if (!anthropic) {
-    return c.json({ error: "AI assistant is not configured" }, 503);
+    return c.json({ error: "AI assistant is not configured — set ANTHROPIC_API_KEY on the server" }, 503);
   }
 
   try {
@@ -1681,9 +1681,14 @@ app.post("/make-server-dd877831/listings/draft-description", async (c) => {
         outputTokens: response.usage.output_tokens,
       },
     });
-  } catch (error) {
+  } catch (error: any) {
     console.error("draft-description error:", error);
-    return c.json({ error: "Could not generate a description" }, 500);
+    const status = typeof error?.status === "number" ? error.status : 500;
+    const message =
+      status === 401 || status === 403
+        ? "AI assistant authentication failed — check ANTHROPIC_API_KEY"
+        : "Could not generate a description";
+    return c.json({ error: message }, status >= 400 && status < 600 ? status : 500);
   }
 });
 

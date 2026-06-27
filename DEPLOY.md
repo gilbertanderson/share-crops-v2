@@ -37,6 +37,7 @@ fallback stays useful even if the Edge Functions runtime is down.
 | `SEED_RATER_EMAIL` | optional (seed-data rater) | no |
 | `CORS_ORIGINS` | comma-separated allowed origins, e.g. `https://<app>.vercel.app,http://localhost:5173,http://localhost:4321` | no |
 | `DEFAULT_ORIGIN` | e.g. `https://<app>.vercel.app` | no |
+| `ANTHROPIC_API_KEY` | **required for AI listing drafts** — Anthropic API key (`sk-ant-...`) | **yes** |
 | `SKIP_INIT` | **Vercel only:** `true` (skips re-seeding on cold starts) | no |
 
 > The service-role key is **not** in this repo and must never be committed.
@@ -57,6 +58,7 @@ supabase link --project-ref xwjvtpzpufhuybylnwzx
 supabase secrets set \
   SUPABASE_SERVICE_ROLE_KEY=... \
   ADMIN_EMAIL=... \
+  ANTHROPIC_API_KEY=... \
   APP_ID=dd877831 \
   STORAGE_BUCKET_NAME=make-dd877831-sharecrops \
   KV_TABLE_NAME=kv_store_dd877831 \
@@ -96,6 +98,7 @@ vercel env add KV_TABLE_NAME          # kv_store_dd877831
 vercel env add ADMIN_EMAIL
 vercel env add CORS_ORIGINS
 vercel env add DEFAULT_ORIGIN
+vercel env add ANTHROPIC_API_KEY      # sk-ant-... — powers ✨ Draft with AI
 vercel env add SKIP_INIT              # true
 vercel env add FIREBASE_PROJECT_ID    # share-crops-app
 

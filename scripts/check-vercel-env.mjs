@@ -18,3 +18,7 @@ if (missing.length) {
 }
 
 console.log('✓ required Vercel environment variables are present');
+
+if (!process.env.ANTHROPIC_API_KEY?.trim()) {
+  console.warn('⚠ ANTHROPIC_API_KEY is not set — the ✨ Draft with AI button will return 503 until you add it and redeploy.');
+}
