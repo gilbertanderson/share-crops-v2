@@ -63,8 +63,31 @@ export function CreateListingSheet({ onClose }: { onClose: () => void }) {
   return (
     <Modal onClose={onClose}>
       <h2>List Your Produce</h2>
-      <label className="field-label">What are you sharing?</label>
-      <input className="input" placeholder="e.g., Fresh Tomatoes" value={title} onChange={(e) => setTitle(e.target.value)} style={{ marginTop: 6 }} />
+      <div style={{ display: 'flex', gap: 8 }}>
+        <div style={{ flex: 2, minWidth: 0 }}>
+          <label className="field-label">What are you sharing?</label>
+          <input className="input" placeholder="e.g., Fresh Tomatoes" value={title} onChange={(e) => setTitle(e.target.value)} style={{ marginTop: 6 }} />
+        </div>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <label className="field-label">Quantity</label>
+          <input className="input" placeholder="10 lbs" value={qty} onChange={(e) => setQty(e.target.value)} style={{ marginTop: 6 }} />
+        </div>
+      </div>
+      <label className="field-label" style={{ marginTop: 12 }}>Looking for</label>
+      <input className="input" placeholder="eggs, bread" value={look} onChange={(e) => setLook(e.target.value)} style={{ marginTop: 6 }} />
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 12 }}>
+        <label className="field-label">Description</label>
+        <button
+          type="button"
+          className="btn btn-ghost btn-sm"
+          disabled={!title.trim() || draft.isPending}
+          onClick={() => draft.mutate()}
+          title={title.trim() ? 'Draft a description with AI' : 'Add a title first'}
+        >
+          {draft.isPending ? 'Drafting…' : '✨ Draft with AI'}
+        </button>
+      </div>
+      <textarea className="input" placeholder="Tell others about it…" value={desc} onChange={(e) => setDesc(e.target.value)} style={{ marginTop: 6 }} />
       <label className="field-label" style={{ marginTop: 12 }}>Photos</label>
       <input ref={fileRef} type="file" accept="image/*" hidden onChange={onPickPhoto} />
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 8, marginTop: 6 }}>
@@ -79,29 +102,6 @@ export function CreateListingSheet({ onClose }: { onClose: () => void }) {
           {uploading ? '…' : Icon.plus(28)}
         </button>
       </div>
-      <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
-        <div style={{ flex: 1 }}>
-          <label className="field-label">Quantity</label>
-          <input className="input" placeholder="10 lbs" value={qty} onChange={(e) => setQty(e.target.value)} style={{ marginTop: 6 }} />
-        </div>
-        <div style={{ flex: 1 }}>
-          <label className="field-label">Looking for</label>
-          <input className="input" placeholder="eggs, bread" value={look} onChange={(e) => setLook(e.target.value)} style={{ marginTop: 6 }} />
-        </div>
-      </div>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 12 }}>
-        <label className="field-label">Description</label>
-        <button
-          type="button"
-          className="btn btn-ghost btn-sm"
-          disabled={!title.trim() || draft.isPending}
-          onClick={() => draft.mutate()}
-          title={title.trim() ? 'Draft a description with AI' : 'Add a title first'}
-        >
-          {draft.isPending ? 'Drafting…' : '✨ Draft with AI'}
-        </button>
-      </div>
-      <textarea className="input" placeholder="Tell others about it…" value={desc} onChange={(e) => setDesc(e.target.value)} style={{ marginTop: 6 }} />
       <label className="field-label" style={{ marginTop: 12 }}>Expires in</label>
       <div className="segmented" style={{ marginTop: 6 }}>
         {[3, 7, 14].map((d) => (
