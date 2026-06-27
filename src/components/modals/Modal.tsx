@@ -1,4 +1,5 @@
 import React, { useEffect } from 'react';
+import { createPortal } from 'react-dom';
 
 export function Modal({ onClose, children }: { onClose: () => void; children: React.ReactNode }) {
   useEffect(() => {
@@ -9,12 +10,15 @@ export function Modal({ onClose, children }: { onClose: () => void; children: Re
     return () => window.removeEventListener('keydown', onKey);
   }, [onClose]);
 
-  return (
+  // Portal to body so the sheet stacks above the bottom nav (.screen-body is an
+  // earlier sibling of .bottom-nav, so in-tree modals would paint underneath).
+  return createPortal(
     <div className="modal-backdrop" onClick={onClose}>
       <div className="modal-sheet" onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true">
         <div className="grabber" />
         {children}
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }

@@ -148,6 +148,8 @@ a { color: inherit; }
 
 /* Bottom nav */
 .bottom-nav {
+  position: relative;
+  z-index: 10;
   display: flex;
   background: var(--card);
   border-top: 1px solid var(--border);
