@@ -7,6 +7,7 @@ import { AuthProvider } from '@/context/AuthContext';
 import { ToastProvider, showGlobalToast } from '@/components/atoms/Toast';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 import './styles/global.css';
+import { registerAppServiceWorker } from '@/lib/serviceWorker';
 
 // Apply the saved view mode before first paint to avoid a frame flash.
 if (localStorage.getItem('sc_view_mode') === 'frame') {
@@ -45,12 +46,6 @@ createRoot(document.getElementById('root')!).render(
   </ErrorBoundary>
 );
 
-// Register the app-shell service worker (PWA install + offline). Push uses a
-// separate FCM worker, registered on demand from requestPushToken().
-if ('serviceWorker' in navigator && import.meta.env.PROD) {
-  window.addEventListener('load', () => {
-    navigator.serviceWorker.register('/sw.js').catch((err) => {
-      console.warn('Service worker registration failed:', err);
-    });
-  });
-}
+// App-shell service worker (PWA install + offline). Push uses a separate FCM
+// worker, registered on demand from requestPushToken().
+registerAppServiceWorker();

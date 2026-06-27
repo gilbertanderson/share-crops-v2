@@ -571,3 +571,79 @@ textarea.input { resize: none; min-height: 80px; line-height: 1.45; }
 .center-fill { flex: 1; display: flex; align-items: center; justify-content: center; }
 .spin { width: 18px; height: 18px; border-radius: 50%; border: 2px solid rgba(255,255,255,0.4); border-top-color: #fff; animation: spin .7s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
+
+/* PWA — offline, install, and update prompts */
+.pwa-offline-banner {
+  flex-shrink: 0;
+  padding: 8px 14px;
+  padding-top: max(8px, env(safe-area-inset-top));
+  background: var(--warning);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.4;
+  text-align: center;
+}
+
+.pwa-update-banner {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding: 10px 14px;
+  background: var(--primary);
+  color: var(--primary-foreground);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.pwa-install-banner {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 14px;
+  background: var(--card);
+  border-top: 1px solid var(--border);
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.pwa-install-banner-text { flex: 1; color: var(--foreground); }
+.pwa-install-banner-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.pwa-install-card {
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.pwa-install-card-title {
+  font-family: 'Fraunces', serif;
+  font-weight: 600;
+  font-size: 18px;
+}
+
+.pwa-install-card-desc {
+  margin: 0;
+  font-size: 13px;
+  color: var(--muted-foreground);
+  line-height: 1.45;
+}
+
+.pwa-ios-steps {
+  margin: 0;
+  padding-left: 1.1rem;
+  font-size: 13px;
+  color: var(--foreground);
+  line-height: 1.55;
+}
