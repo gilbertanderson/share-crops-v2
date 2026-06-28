@@ -39905,6 +39905,7 @@ Title: "Too many zucchini" / Notes: ""
 Title: "eggs" / Notes: "mixed, blue and brown"
 \u2192 A dozen mixed brown and blue eggs from our backyard hens, gathered this week.`;
 var _anthropic = null;
+var DRAFT_MODEL = getEnv("ANTHROPIC_DRAFT_MODEL") || "claude-haiku-4-5-20251001";
 var getAnthropic = () => {
   const apiKey = getEnv("ANTHROPIC_API_KEY");
   if (!apiKey) return null;
@@ -39931,7 +39932,7 @@ app.post("/make-server-dd877831/listings/draft-description", async (c) => {
     const response = await anthropic.messages.create({
       // Haiku 4.5 — this is a short, tightly-constrained ≤200-char text task;
       // Opus-tier is overkill. ~5x cheaper than Opus 4.8 at equal quality here.
-      model: "claude-haiku-4-5",
+      model: DRAFT_MODEL,
       max_tokens: 1024,
       // cache_control marks the stable system prefix, but it is a no-op at this
       // size: the prompt is ~475 tokens and the min cacheable prefix is 4096
@@ -39966,7 +39967,8 @@ Write the listing description.`
   } catch (error) {
     console.error("draft-description error:", error);
     const status = typeof error?.status === "number" ? error.status : 500;
-    const message2 = status === 401 || status === 403 ? "AI assistant authentication failed \u2014 check ANTHROPIC_API_KEY" : "Could not generate a description";
+    const detail = error?.error?.message || error?.message;
+    const message2 = status === 401 || status === 403 ? "AI assistant authentication failed \u2014 check ANTHROPIC_API_KEY" : status === 404 ? `AI model not found (${DRAFT_MODEL}) \u2014 check ANTHROPIC_DRAFT_MODEL` : typeof detail === "string" && detail.trim() ? detail : "Could not generate a description";
     return c.json({ error: message2 }, status >= 400 && status < 600 ? status : 500);
   }
 });
