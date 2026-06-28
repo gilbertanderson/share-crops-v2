@@ -79,8 +79,10 @@ controlled):
 
 ### Testing
 - E2E: `npx playwright test` (Playwright auto-starts Vite on port 4321). Browser
-  install: `npx playwright install chromium` (Chromium only; that's all the
-  config uses).
+ install: `npx playwright install chromium` (Chromium only; that's all the
+ config uses). Uses system Chrome when bundled Chromium is unavailable (`channel: 'chrome'`).
+- `tests/ai-draft.spec.ts` covers ✨ Draft with AI (Firebase Auth Emulator + mocked API).
+  Starts the Auth Emulator via `playwright.global-setup.ts`.
 - `tests/auth-firebase.spec.ts` "signup with a compliant password…" creates a
   user via Firebase Auth — point it at the Auth Emulator (above) to run it
   without real credentials/network.
