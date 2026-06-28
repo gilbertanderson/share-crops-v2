@@ -98,7 +98,9 @@ export default function ListingDetail() {
           )}
           <p style={{ fontSize: 14, lineHeight: 1.55, marginTop: 14 }}>{listing.description}</p>
           <p style={{ fontSize: 12, color: 'var(--muted-foreground)', marginTop: 14 }}>
-            Expires in {daysLeft(listing.expiresAt)} days
+            {listing.expiresAt
+              ? `Expires in ${daysLeft(listing.expiresAt)} days`
+              : 'Does not expire'}
           </p>
 
           {seller && (

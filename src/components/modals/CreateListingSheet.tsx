@@ -4,6 +4,7 @@ import { API, ApiError } from '@/lib/api';
 import { Modal } from './Modal';
 import { Icon } from '@/components/atoms/Icon';
 import { useToast } from '@/components/atoms/Toast';
+import { useAuth } from '@/context/AuthContext';
 
 function buildDraftNotes(qty: string, look: string, desc: string): string | undefined {
   const parts: string[] = [];
@@ -34,6 +35,7 @@ export function CreateListingSheet({ onClose }: { onClose: () => void }) {
   const [uploading, setUploading] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
   const { showToast } = useToast();
+  const { isAdmin } = useAuth();
   const qc = useQueryClient();
 
   const onPickPhoto = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -128,6 +130,11 @@ export function CreateListingSheet({ onClose }: { onClose: () => void }) {
             {d} days
           </button>
         ))}
+        {isAdmin && (
+          <button className={expiresInDays === 0 ? 'active' : ''} onClick={() => setExpiresInDays(0)}>
+            Never
+          </button>
+        )}
       </div>
       <div style={{ display: 'flex', gap: 8, marginTop: 18 }}>
         <button className="btn btn-outline" style={{ flex: 1 }} onClick={onClose}>Cancel</button>

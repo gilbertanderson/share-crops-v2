@@ -34,7 +34,7 @@ export interface Listing {
   zipCode: string;
   status: 'active' | 'completed' | 'expired';
   createdAt: string;
-  expiresAt: string;
+  expiresAt: string | null;
   seller?: User;
 }
 
