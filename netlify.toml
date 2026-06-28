@@ -1,0 +1,17 @@
+# Share Crops v2 — Netlify static SPA deploy.
+# Firebase web config (VITE_FIREBASE_*) must be set as plain env vars (not
+# "secret") — they are public client identifiers. Only mark server keys
+# (SUPABASE_SERVICE_ROLE_KEY, ANTHROPIC_API_KEY, FIREBASE_SERVICE_ACCOUNT) secret.
+[build]
+  command = "npm run build"
+  publish = "dist"
+
+[[headers]]
+  for = "/sw.js"
+  [headers.values]
+    Cache-Control = "no-cache"
+
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
