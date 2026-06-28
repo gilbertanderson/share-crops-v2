@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "predev": "node scripts/generate-sw.mjs",
-    "prebuild": "node scripts/generate-sw.mjs",
+    "prebuild": "node scripts/decode-firebase-env.mjs && node scripts/generate-sw.mjs",
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
