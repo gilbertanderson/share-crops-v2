@@ -95,6 +95,10 @@ function printEnv() {
   console.log('\nAlso confirm server-only secrets are already set:');
   console.log('  SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, SUPABASE_ANON_KEY,');
   console.log('  ADMIN_EMAIL, APP_ID, KV_TABLE_NAME, STORAGE_BUCKET_NAME, SKIP_INIT=true');
+  console.log('\nOptional — stable listing/profile image URLs (no signed-URL expiry):');
+  console.log('  NETLIFY_BLOBS_SITE_ID  (Netlify site ID for sharecropsmarketplace)');
+  console.log('  NETLIFY_BLOBS_TOKEN    (Netlify personal access token — Sensitive)');
+  console.log('  See DEPLOY.md §5. Without both, /upload keeps using Supabase Storage.');
   console.log('\nFirebase Console → Authentication → Settings → Authorized domains:');
   console.log(`  ${PRIMARY_HOSTNAME}`);
   console.log(`  ${FALLBACK_HOSTNAME}`);

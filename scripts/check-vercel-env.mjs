@@ -45,3 +45,17 @@ if (!process.env.ANTHROPIC_API_KEY?.trim()) {
 if (!process.env.VITE_FIREBASE_VAPID_KEY?.trim()) {
   console.warn('⚠ VITE_FIREBASE_VAPID_KEY is not set — Profile → Enable notifications will fail until you add it and redeploy.');
 }
+
+const blobsSite = process.env.NETLIFY_BLOBS_SITE_ID?.trim();
+const blobsToken = process.env.NETLIFY_BLOBS_TOKEN?.trim();
+if (blobsSite && blobsToken) {
+  console.log('✓ Netlify Blobs image storage is configured (stable /images/ URLs)');
+} else if (blobsSite || blobsToken) {
+  console.warn(
+    '⚠ NETLIFY_BLOBS_SITE_ID and NETLIFY_BLOBS_TOKEN must both be set — uploads still use expiring Supabase signed URLs.',
+  );
+} else {
+  console.warn(
+    '⚠ Netlify Blobs not configured — /upload returns 1-year Supabase signed URLs that expire on stored listings. See DEPLOY.md §5.',
+  );
+}
