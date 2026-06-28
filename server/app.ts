@@ -600,10 +600,20 @@ app.post("/make-server-dd877831/listings", async (c) => {
       return c.json({ error: "Looking for description must be 0-500 characters" }, 400);
     }
 
-    // Validate expiration
-    const parsedExpiration = Number(expiresInDays ?? 30);
-    if (!Number.isInteger(parsedExpiration) || parsedExpiration < 1 || parsedExpiration > MAX_LISTING_EXPIRATION_DAYS) {
-      return c.json({ error: `Expiration must be an integer between 1 and ${MAX_LISTING_EXPIRATION_DAYS} days` }, 400);
+    // Validate expiration (admins may pass 0 for a non-expiring listing — testing)
+    let expiresAt: string | null;
+    if (Number(expiresInDays) === 0) {
+      const role = await getUserRole(user.id);
+      if (role !== 'admin') {
+        return c.json({ error: `Expiration must be an integer between 1 and ${MAX_LISTING_EXPIRATION_DAYS} days` }, 400);
+      }
+      expiresAt = null;
+    } else {
+      const parsedExpiration = Number(expiresInDays ?? 30);
+      if (!Number.isInteger(parsedExpiration) || parsedExpiration < 1 || parsedExpiration > MAX_LISTING_EXPIRATION_DAYS) {
+        return c.json({ error: `Expiration must be an integer between 1 and ${MAX_LISTING_EXPIRATION_DAYS} days` }, 400);
+      }
+      expiresAt = new Date(Date.now() + parsedExpiration * 24 * 60 * 60 * 1000).toISOString();
     }
 
     // Prevent SQL injection in text fields
@@ -643,7 +653,7 @@ app.post("/make-server-dd877831/listings", async (c) => {
       zipCode: community.zipCode,
       status: 'active',
       createdAt: new Date().toISOString(),
-      expiresAt: new Date(Date.now() + parsedExpiration * 24 * 60 * 60 * 1000).toISOString(),
+      expiresAt,
     };
 
     // One INSERT (location is geocoded from zip at backfill time); the feed and
