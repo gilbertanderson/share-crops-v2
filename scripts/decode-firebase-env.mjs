@@ -4,7 +4,7 @@
  * write .env.production.local for Vite. Keeps API-key-shaped strings out of
  * committed source while still allowing Netlify [build.environment] to supply config.
  */
-import { writeFileSync } from 'node:fs';
+import { writeFileSync, unlinkSync, existsSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -30,8 +30,19 @@ function decodeValue(key) {
 const resolved = Object.fromEntries(FIREBASE_KEYS.map((key) => [key, decodeValue(key)]));
 const lines = FIREBASE_KEYS.filter((key) => resolved[key]).map((key) => `${key}=${resolved[key]}`);
 
-if (lines.length) {
-  writeFileSync(join(ROOT, '.env.production.local'), `${lines.join('\n')}\n`);
+const envProductionLocal = join(ROOT, '.env.production.local');
+
+// Netlify secret scanning flags public Firebase keys in dist/ even when they are
+// expected client config. Unless NETLIFY_INJECT_FIREBASE=true is set in the
+// Netlify UI (alongside SECRETS_SCAN_ENABLED=false), keep placeholder keys so
+// preview deploys succeed; production Firebase config belongs in the UI.
+const skipInject =
+  process.env.NETLIFY === 'true' && process.env.NETLIFY_INJECT_FIREBASE !== 'true';
+
+if (skipInject) {
+  if (existsSync(envProductionLocal)) unlinkSync(envProductionLocal);
+} else if (lines.length) {
+  writeFileSync(envProductionLocal, `${lines.join('\n')}\n`);
   for (const [key, value] of Object.entries(resolved)) {
     if (value) process.env[key] = value;
   }

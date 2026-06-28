@@ -8,18 +8,9 @@
   [build.environment]
     NODE_VERSION = "22"
     NPM_FLAGS = "--include=dev"
-    # API key is base64 to avoid smart secret-scan false positives in this file.
-    VITE_FIREBASE_API_KEY_B64 = "QUl6YVN5Q0VJN2VqMXhqdnV2N0JQZlRvOEdiU25QQ2tVTGlLaklV"
-    VITE_FIREBASE_AUTH_DOMAIN = "share-crops-app.firebaseapp.com"
-    VITE_FIREBASE_PROJECT_ID = "share-crops-app"
-    VITE_FIREBASE_STORAGE_BUCKET = "share-crops-app.firebasestorage.app"
-    VITE_FIREBASE_MESSAGING_SENDER_ID = "764953465643"
-    VITE_FIREBASE_APP_ID = "1:764953465643:web:9433426e334aed02a4eb6e"
-    # Primary: share-crops-v2.vercel.app — backup API on marketplace deployment.
+    # Firebase B64 + NETLIFY_INJECT_FIREBASE=true belong in Netlify UI when scan is off.
+    # Placeholder keys are used by default so preview deploys pass secret scanning.
     VITE_FALLBACK_API_URL = "https://share-crops-marketplace.vercel.app/api/make-server-dd877831"
-    # If scan settings in toml are ignored, set these in Netlify UI → Environment variables.
-    SECRETS_SCAN_SMART_DETECTION_ENABLED = "false"
-    SECRETS_SCAN_OMIT_PATHS = "dist/sw.js,dist/firebase-messaging-sw.js,dist/assets"
 
 [[headers]]
   for = "/sw.js"
