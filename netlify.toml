@@ -1,12 +1,13 @@
 # Share Crops v2 — Netlify static SPA deploy.
 [build]
-  # Netlify sets NODE_ENV=production during install, which skips devDependencies
-  # (typescript, vite, etc.). --include=dev ensures `tsc` and vite are available.
-  command = "npm ci --include=dev && npm run build"
+  # Netlify's default install omits devDependencies when NODE_ENV=production.
+  # NPM_FLAGS ensures typescript/vite are installed; then a normal build is enough.
+  command = "npm run build"
   publish = "dist"
 
   [build.environment]
     NODE_VERSION = "22"
+    NPM_FLAGS = "--include=dev"
     # API key is base64 to avoid smart secret-scan false positives in this file.
     VITE_FIREBASE_API_KEY_B64 = "QUl6YVN5Q0VJN2VqMXhqdnV2N0JQZlRvOEdiU25QQ2tVTGlLaklV"
     VITE_FIREBASE_AUTH_DOMAIN = "share-crops-app.firebaseapp.com"
