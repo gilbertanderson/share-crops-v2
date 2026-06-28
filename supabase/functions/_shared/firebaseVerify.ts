@@ -16,17 +16,30 @@ const JWKS = createRemoteJWKSet(
   new URL("https://www.googleapis.com/service_accounts/v1/jwk/securetoken@system.gserviceaccount.com"),
 );
 
-// Project id drives the issuer/audience checks. Prefer the service-account JSON
-// (Node), then an explicit/forwarded project-id env, then the known constant.
+// Project id drives the issuer/audience checks. Prefer explicit env vars that
+// match the browser Firebase config — the service account may be present for FCM
+// and must not override the project the client actually signs into.
 function firebaseProjectId(): string {
+  const explicit =
+    getEnv("FIREBASE_PROJECT_ID")?.trim() ||
+    getEnv("VITE_FIREBASE_PROJECT_ID")?.trim();
+  if (explicit) return explicit;
+
   const raw = getEnv("FIREBASE_SERVICE_ACCOUNT");
   if (raw) {
-    try { return JSON.parse(raw).project_id; } catch { /* fall through */ }
+    try {
+      const fromSa = JSON.parse(raw).project_id;
+      if (fromSa) return fromSa;
+    } catch { /* fall through */ }
   }
-  return getEnv("FIREBASE_PROJECT_ID") || getEnv("VITE_FIREBASE_PROJECT_ID") || "share-crops-app";
+  return "share-crops-app";
 }
 
 const PROJECT_ID = firebaseProjectId();
+
+export function getFirebaseProjectId(): string {
+  return PROJECT_ID;
+}
 
 // Verify a Firebase ID token and map it to the app's authed-user shape. Returns
 // null on any invalid/expired/wrong-audience token. The user_metadata mirror

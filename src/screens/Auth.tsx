@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import { useToast } from '@/components/atoms/Toast';
 import { validateEmail, validatePassword, LoginAttemptTracker } from '@/lib/security';
@@ -7,7 +7,6 @@ import {
   signUpWithEmail,
   signInWithEmail,
   signInWithGoogle,
-  consumeGoogleRedirectResult,
   friendlyAuthError,
   sendVerificationEmail,
   reloadCurrentUser,
@@ -18,7 +17,7 @@ import {
 type Mode = 'login' | 'signup';
 
 export default function Auth() {
-  const { refreshAuth, needsEmailVerification, logout } = useAuth();
+  const { refreshAuth, needsEmailVerification, logout, authError, clearAuthError } = useAuth();
   const { showToast } = useToast();
   const [mode, setMode] = useState<Mode>('login');
   const [name, setName] = useState('');
@@ -27,26 +26,10 @@ export default function Auth() {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
-  // After a Google redirect sign-in the page reloads; consume the result here so
-  // failures surface as a toast instead of failing silently.
-  useEffect(() => {
-    let cancelled = false;
-    consumeGoogleRedirectResult()
-      .then(async (user) => {
-        if (cancelled || !user) return;
-        await refreshAuth();
-      })
-      .catch((err) => {
-        if (!cancelled) showToast(friendlyAuthError(err));
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [refreshAuth, showToast]);
-
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
+    clearAuthError();
 
     if (!validateEmail(email)) {
       setError('Please enter a valid email address.');
@@ -90,6 +73,7 @@ export default function Auth() {
 
   const oauth = async () => {
     setError(null);
+    clearAuthError();
     setBusy(true);
     try {
       await signInWithGoogle();
@@ -129,6 +113,7 @@ export default function Auth() {
         </div>
 
         {error && <div className="auth-error">{error}</div>}
+        {authError && <div className="auth-error">{authError}</div>}
 
         <div className="auth-fields">
           {mode === 'signup' && (

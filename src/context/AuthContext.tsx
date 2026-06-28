@@ -1,7 +1,12 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import type { User } from 'firebase/auth';
-import { API, AuthManager, setUnauthorizedHandler } from '@/lib/api';
-import { onAuthChange, logout as firebaseLogout } from '@/lib/firebaseAuth';
+import { API, ApiError, AuthManager, setUnauthorizedHandler } from '@/lib/api';
+import {
+  onAuthChange,
+  logout as firebaseLogout,
+  consumeGoogleRedirectResult,
+  friendlyAuthError,
+} from '@/lib/firebaseAuth';
 
 const INACTIVITY_TIMEOUT_MS = 30 * 60 * 1000; // 30 minutes
 
@@ -15,10 +20,12 @@ interface AuthState {
   communityCount: number;
   isAdmin: boolean;
   loading: boolean;
+  authError: string | null;
 }
 
 interface AuthContextValue extends AuthState {
   refreshAuth: () => Promise<void>;
+  clearAuthError: () => void;
   logout: () => void;
 }
 
@@ -29,9 +36,20 @@ const UNAUTH: AuthState = {
   communityCount: 0,
   isAdmin: false,
   loading: false,
+  authError: null,
 };
 
 const AuthContext = createContext<AuthContextValue | null>(null);
+
+function profileLoadError(err: unknown): string {
+  if (err instanceof ApiError) {
+    if (err.status === 401) {
+      return 'Signed in with Google, but the server rejected your session. Redeploy after confirming FIREBASE_PROJECT_ID matches VITE_FIREBASE_PROJECT_ID (share-crops-app).';
+    }
+    return err.message;
+  }
+  return 'Could not load your profile. Please try again.';
+}
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [state, setState] = useState<AuthState>({ ...UNAUTH, loading: true });
@@ -39,19 +57,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   // The current Firebase user, kept in a ref so refreshAuth() can re-resolve the
   // app profile without waiting for another onAuthChange event.
   const currentUser = useRef<User | null>(null);
+  // While resolving /auth/me during sign-in, don't treat a 401 as a stale session.
+  const isBootstrapping = useRef(false);
 
   // Resolve app-level auth state for a given Firebase user: signed out →
   // unauthenticated; unverified email → held for verification; verified → load
   // the profile + communities from the backend (token attached by API.request).
   const applyUser = useCallback(async (user: User | null) => {
     if (!user) {
-      setState({ ...UNAUTH });
+      setState((prev) => ({ ...UNAUTH, authError: prev.authError }));
       return;
     }
     if (!user.emailVerified) {
-      setState({ ...UNAUTH, needsEmailVerification: true });
+      setState({ ...UNAUTH, needsEmailVerification: true, authError: null });
       return;
     }
+
+    isBootstrapping.current = true;
+    setState((prev) => ({ ...prev, loading: true, authError: null }));
     try {
       const { user: profile } = await API.getMe();
       const communitiesData = await API.getMyCommunities();
@@ -63,9 +86,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         communityCount,
         isAdmin: profile?.role === 'admin',
         loading: false,
+        authError: null,
       });
-    } catch {
-      setState({ ...UNAUTH });
+    } catch (err) {
+      setState({
+        ...UNAUTH,
+        loading: false,
+        authError: profileLoadError(err),
+      });
+    } finally {
+      isBootstrapping.current = false;
     }
   }, []);
 
@@ -73,11 +103,34 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     await applyUser(currentUser.current);
   }, [applyUser]);
 
+  const clearAuthError = useCallback(() => {
+    setState((prev) => ({ ...prev, authError: null }));
+  }, []);
+
   const logout = useCallback(() => {
     // Signing out fires onAuthChange(null), which resets state via applyUser.
     firebaseLogout();
     AuthManager.clearToken(); // clear cached profile + community selection
   }, []);
+
+  // Complete a pending Google redirect sign-in as early as possible.
+  useEffect(() => {
+    let cancelled = false;
+    consumeGoogleRedirectResult()
+      .then(async (user) => {
+        if (cancelled || !user) return;
+        currentUser.current = user;
+        await applyUser(user);
+      })
+      .catch((err) => {
+        if (!cancelled) {
+          setState((prev) => ({ ...prev, loading: false, authError: friendlyAuthError(err) }));
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [applyUser]);
 
   // Subscribe to Firebase auth state for the provider's lifetime.
   useEffect(() => {
@@ -90,9 +143,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   // Any 401 from the API means the session is no longer valid server-side
   // (expired/rejected token); sign out so the app falls back to the login
-  // screen instead of repeatedly issuing failing requests.
+  // screen instead of repeatedly issuing failing requests. Skip during the
+  // initial profile load so a misconfigured API doesn't immediately sign the
+  // user back out of Firebase before we can show the error.
   useEffect(() => {
-    setUnauthorizedHandler(() => logout());
+    setUnauthorizedHandler(() => {
+      if (!isBootstrapping.current) logout();
+    });
     return () => setUnauthorizedHandler(null);
   }, [logout]);
 
@@ -120,7 +177,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [state.isAuthenticated, logout]);
 
   return (
-    <AuthContext.Provider value={{ ...state, refreshAuth, logout }}>
+    <AuthContext.Provider value={{ ...state, refreshAuth, clearAuthError, logout }}>
       {children}
     </AuthContext.Provider>
   );

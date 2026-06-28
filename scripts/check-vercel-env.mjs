@@ -17,6 +17,15 @@ if (missing.length) {
   process.exit(1);
 }
 
+const clientProject = process.env.VITE_FIREBASE_PROJECT_ID?.trim();
+const serverProject = process.env.FIREBASE_PROJECT_ID?.trim();
+if (clientProject && serverProject && clientProject !== serverProject) {
+  console.error(
+    `VITE_FIREBASE_PROJECT_ID (${clientProject}) must match FIREBASE_PROJECT_ID (${serverProject}) for Google sign-in tokens to verify.`,
+  );
+  process.exit(1);
+}
+
 console.log('✓ required Vercel environment variables are present');
 
 if (!process.env.ANTHROPIC_API_KEY?.trim()) {

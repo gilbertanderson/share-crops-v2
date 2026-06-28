@@ -10,7 +10,7 @@ import * as security from "./security.ts";
 import { createClient } from "@supabase/supabase-js";
 import Anthropic from "@anthropic-ai/sdk";
 import { getEnv } from "./env.ts";
-import { verifyFirebaseToken } from "./firebaseAdmin.ts";
+import { verifyFirebaseToken, getFirebaseProjectId } from "./firebaseAdmin.ts";
 
 const ADMIN_EMAIL = (() => {
   const adminEmail = getEnv('ADMIN_EMAIL');
@@ -228,7 +228,7 @@ const deleteListingRecords = async (listing: any) => {
 
 // Health check endpoint
 app.get(`/${API_PREFIX}/health`, (c) => {
-  return c.json({ status: "ok" });
+  return c.json({ status: "ok", firebaseProjectId: getFirebaseProjectId() });
 });
 
 // ===== AUTH ROUTES =====
