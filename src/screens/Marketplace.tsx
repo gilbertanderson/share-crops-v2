@@ -11,11 +11,11 @@ import { CreateListingSheet } from '@/components/modals/CreateListingSheet';
 import { FindCommunitySheet } from '@/components/modals/FindCommunitySheet';
 import { useAuth } from '@/context/AuthContext';
 
-type SortKey = 'newest' | 'az';
+type SortKey = 'newest' | 'az' | 'trending';
 type Density = 'grid' | 'list';
 type Filter = 'community' | 'all' | 'global';
 
-const SORT_LABEL: Record<SortKey, string> = { newest: 'Newest', az: 'A–Z' };
+const SORT_LABEL: Record<SortKey, string> = { newest: 'Newest', az: 'A–Z', trending: 'Trending' };
 
 function TrendingPanel({ items, communityName }: { items: Array<{ title: string; offers: number }>; communityName?: string }) {
   const top = items.filter((i) => i.offers > 0).slice(0, 3);
@@ -98,6 +98,7 @@ export default function Marketplace() {
     const sorters: Record<SortKey, (a: Listing, b: Listing) => number> = {
       newest: (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
       az: (a, b) => a.title.localeCompare(b.title),
+      trending: (a, b) => (trendingMap.get(b.id)?.offers ?? 0) - (trendingMap.get(a.id)?.offers ?? 0),
     };
     return [...filtered].sort(sorters[sort]);
   }, [listings, search, sort, trendingMap]);
