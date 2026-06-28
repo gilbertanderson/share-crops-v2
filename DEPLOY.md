@@ -37,7 +37,7 @@ fallback stays useful even if the Edge Functions runtime is down.
 | `SEED_RATER_EMAIL` | optional (seed-data rater) | no |
 | `CORS_ORIGINS` | comma-separated allowed origins, e.g. `https://share-crops-marketplace.vercel.app,http://localhost:5173` | no |
 | `DEFAULT_ORIGIN` | e.g. `https://share-crops-marketplace.vercel.app` | no |
-| `ANTHROPIC_API_KEY` | **required for AI listing drafts** — Anthropic API key (`sk-ant-...`) | **yes** |
+| `ANTHROPIC_API_KEY` | **required for AI listing drafts** — Anthropic API key | **yes** |
 | `ANTHROPIC_DRAFT_MODEL` | optional — defaults to `claude-haiku-4-5-20251001` | no |
 | `SKIP_INIT` | **Vercel only:** `true` (skips re-seeding on cold starts) | no |
 
@@ -99,7 +99,7 @@ vercel env add KV_TABLE_NAME          # kv_store_dd877831
 vercel env add ADMIN_EMAIL
 vercel env add CORS_ORIGINS
 vercel env add DEFAULT_ORIGIN
-vercel env add ANTHROPIC_API_KEY      # sk-ant-... — powers ✨ Draft with AI
+vercel env add ANTHROPIC_API_KEY      # powers ✨ Draft with AI
 vercel env add SKIP_INIT              # true
 vercel env add FIREBASE_PROJECT_ID    # share-crops-app
 

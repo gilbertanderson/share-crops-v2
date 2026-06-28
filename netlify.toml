@@ -1,10 +1,22 @@
 # Share Crops v2 — Netlify static SPA deploy.
-# Firebase web config (VITE_FIREBASE_*) must be set as plain env vars (not
-# "secret") — they are public client identifiers. Only mark server keys
-# (SUPABASE_SERVICE_ROLE_KEY, ANTHROPIC_API_KEY, FIREBASE_SERVICE_ACCOUNT) secret.
+#
+# Firebase web config below is PUBLIC (client SDK identifiers). Do not mark these
+# as "secret" in the Netlify UI — that makes secret scanning fail the build
+# output. Server-only keys (SUPABASE_SERVICE_ROLE_KEY, etc.) belong in the UI.
 [build]
   command = "npm run build"
   publish = "dist"
+
+  [build.environment]
+    # Public Firebase web SDK config (same values as Firebase console → Project settings).
+    VITE_FIREBASE_API_KEY = "AIzaSyCEI7ej1xjvuv7BPfTo8GbSnPCkULiKjIU"
+    VITE_FIREBASE_AUTH_DOMAIN = "share-crops-app.firebaseapp.com"
+    VITE_FIREBASE_PROJECT_ID = "share-crops-app"
+    VITE_FIREBASE_STORAGE_BUCKET = "share-crops-app.firebasestorage.app"
+    VITE_FIREBASE_MESSAGING_SENDER_ID = "764953465643"
+    VITE_FIREBASE_APP_ID = "1:764953465643:web:9433426e334aed02a4eb6e"
+    # Smart detection flags public Firebase keys in dist/ — disable for this project.
+    SECRETS_SCAN_SMART_DETECTION_ENABLED = "false"
 
 [[headers]]
   for = "/sw.js"
