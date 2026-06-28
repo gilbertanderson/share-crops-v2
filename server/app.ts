@@ -7,6 +7,7 @@ import { logger } from "hono/logger";
 import * as db from "./db.ts";
 import * as fcm from "./fcm.ts";
 import * as security from "./security.ts";
+import * as storage from "./storage.ts";
 import { createClient } from "@supabase/supabase-js";
 import Anthropic from "@anthropic-ai/sdk";
 import { getEnv } from "./env.ts";
@@ -1406,12 +1407,22 @@ app.post("/make-server-dd877831/upload", async (c) => {
     // sanitized extension and generate the rest, scoped under the user's id.
     const rawExt = file.name.toLowerCase().slice(file.name.lastIndexOf('.'));
     const safeExt = /^\.[a-z0-9]{1,5}$/.test(rawExt) ? rawExt : '';
-    const fileName = `${user.id}/${crypto.randomUUID()}${safeExt}`;
-
+    const key = `${user.id}/${crypto.randomUUID()}${safeExt}`;
     const fileBuffer = await file.arrayBuffer();
-    const { data, error } = await supabase.storage
+
+    // Preferred: Netlify Blobs — stable same-origin URL (no signed-URL expiry).
+    // Falls back to Supabase Storage when Blobs env vars are unset.
+    if (storage.isBlobsConfigured()) {
+      await storage.putImage(key, fileBuffer, file.type);
+      const reqUrl = new URL(c.req.url);
+      const servingPath = reqUrl.pathname.replace(/\/upload$/, `/images/${key}`);
+      const url = `${reqUrl.origin}${servingPath}`;
+      return c.json({ success: true, url, path: key });
+    }
+
+    const { error } = await supabase.storage
       .from(bucketName)
-      .upload(fileName, fileBuffer, {
+      .upload(key, fileBuffer, {
         contentType: file.type,
         upsert: false
       });
@@ -1421,17 +1432,40 @@ app.post("/make-server-dd877831/upload", async (c) => {
       return c.json({ error: "Upload failed" }, 500);
     }
 
-    // Signed URL valid for 1 year. NOTE: these URLs are persisted on listing /
-    // profile rows, so the lifetime can't be shortened without a proxy/refresh
-    // mechanism — tracked separately from this security pass.
+    // Signed URL valid for 1 year. Persisted on listing/profile rows — expires
+    // unless refreshed; use Netlify Blobs (above) for stable URLs.
     const { data: urlData } = await supabase.storage
       .from(bucketName)
-      .createSignedUrl(fileName, 31536000);
+      .createSignedUrl(key, 31536000);
 
-    return c.json({ success: true, url: urlData?.signedUrl, path: fileName });
+    return c.json({ success: true, url: urlData?.signedUrl, path: key });
   } catch (error) {
     console.error("Upload error:", error);
     return c.json({ error: "Upload failed" }, 500);
+  }
+});
+
+// Serves an image stored in Netlify Blobs by /upload (stable URL path).
+app.get("/make-server-dd877831/images/:key{.+}", async (c) => {
+  if (!storage.isBlobsConfigured()) {
+    return c.json({ error: "Not found" }, 404);
+  }
+  try {
+    const key = c.req.param('key');
+    const image = await storage.getImage(key);
+    if (!image) {
+      return c.json({ error: "Not found" }, 404);
+    }
+    return new Response(image.data, {
+      status: 200,
+      headers: {
+        'Content-Type': image.contentType,
+        'Cache-Control': 'public, max-age=31536000, immutable',
+      },
+    });
+  } catch (error) {
+    console.error("Image fetch error:", error);
+    return c.json({ error: "Failed to load image" }, 500);
   }
 });
 
