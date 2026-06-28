@@ -43,6 +43,8 @@ fallback stays useful even if the Edge Functions runtime is down.
 | `ANTHROPIC_API_KEY` | **required for AI listing drafts** — Anthropic API key | **yes** |
 | `ANTHROPIC_DRAFT_MODEL` | optional — defaults to `claude-haiku-4-5-20251001` | no |
 | `SKIP_INIT` | **Vercel only:** `true` (skips re-seeding on cold starts) | no |
+| `NETLIFY_BLOBS_SITE_ID` | **optional** — Netlify site ID for stable image URLs (see §5) | no |
+| `NETLIFY_BLOBS_TOKEN` | **optional** — Netlify personal access token with Blobs access (see §5) | **yes** |
 
 > The service-role key is **not** in this repo and must never be committed.
 
@@ -169,6 +171,95 @@ curl https://share-crops-marketplace.vercel.app/api/make-server-dd877831/health
 
 The e2e suite (`npm run test:e2e`) includes `tests/failover.spec.ts`, which
 forces the primary to 5xx and asserts the app still loads via the fallback.
+
+---
+
+## 5. Stable listing/profile images (Netlify Blobs)
+
+By default, `/upload` stores files in **Supabase Storage** and returns a
+**1-year signed URL** (`createSignedUrl(..., 31536000)`). That URL is persisted
+on the listing or profile row — when it expires, the image breaks permanently.
+
+When **both** `NETLIFY_BLOBS_SITE_ID` and `NETLIFY_BLOBS_TOKEN` are set on the
+**Vercel** API runtime, uploads go to a Netlify Blob store instead. The API
+returns a **stable same-origin URL**:
+
+```
+https://share-crops-v2.vercel.app/api/make-server-dd877831/images/<key>
+```
+
+`GET /images/:key` streams the blob with long-lived cache headers. Nothing in
+the DB expires.
+
+> **Where this applies:** Production uploads hit same-origin `/api` on Vercel
+> (`src/lib/api.ts`), so Blobs vars belong on the **Vercel** project (both
+> `share-crops-v2` and `share-crops-marketplace` if you use the fallback for
+> uploads). The Supabase Edge Function primary copy still uses Supabase signed
+> URLs — Deno does not run `@netlify/blobs` today.
+
+### Enable on Vercel
+
+1. **Site ID** — Netlify → [sharecropsmarketplace](https://app.netlify.com/projects/sharecropsmarketplace) → Site configuration → Site details → **Site ID**
+2. **Token** — Netlify → User settings → Applications → **Personal access tokens** (create one with Blobs scope)
+3. Add both to Vercel → Project → Environment Variables → **Production + Preview** (server-only, not `VITE_*`):
+
+```bash
+vercel env add NETLIFY_BLOBS_SITE_ID   # paste Site ID
+vercel env add NETLIFY_BLOBS_TOKEN     # paste token (mark as Sensitive)
+```
+
+4. Redeploy both Vercel projects (`vercel --prod` or push to `main`).
+
+### Verify
+
+Upload a photo from **Create listing** or **Profile**. The JSON response should
+include a URL under `…/images/…`, not a `supabase.co/storage/v1/object/sign/…`
+link. Open the image URL in a new tab — it should load without auth.
+
+Existing rows that still store old Supabase signed URLs are **not** migrated
+automatically; re-upload photos or run a one-off refresh if needed.
+
+---
+
+## 6. Netlify static SPA (optional mirror)
+
+`netlify.toml` deploys the **frontend only** (no `/api` function). The SPA
+calls the Vercel fallback API via `VITE_FALLBACK_API_URL`.
+
+Site: [sharecropsmarketplace](https://app.netlify.com/projects/sharecropsmarketplace)
+
+### Build
+
+Netlify runs `npm install --include=dev && npm run build` and publishes `dist/`.
+`NODE_VERSION=22` is set in `netlify.toml`.
+
+### Secret scanning (required for green deploys)
+
+Netlify's post-build secret scanner flags Firebase web config baked into `dist/`
+and service worker files. Settings in `netlify.toml` (`SECRETS_SCAN_OMIT_PATHS`)
+are **not always applied** — configure in the Netlify UI:
+
+1. Site → **Project configuration** → **Environment variables**
+2. Either set `SECRETS_SCAN_ENABLED=false`, **or** review flagged values and
+   **unmark** client-safe `VITE_FIREBASE_*` as secrets (they are public in every
+   browser build)
+3. For **real** Firebase auth on Netlify (not placeholder keys): set
+   `NETLIFY_INJECT_FIREBASE=true` plus plain `VITE_FIREBASE_*` vars in the UI
+
+By default, builds use **placeholder** Firebase keys so previews pass scanning;
+auth on the Netlify-hosted SPA will not work until you inject real values.
+
+### Real Firebase on Netlify (optional)
+
+```bash
+# Netlify UI — Production (and Preview if desired):
+NETLIFY_INJECT_FIREBASE=true
+VITE_FIREBASE_API_KEY=...
+VITE_FIREBASE_AUTH_DOMAIN=share-crops-app.firebaseapp.com
+# … remaining VITE_FIREBASE_* from Firebase Console
+```
+
+Add the Netlify site hostname to Firebase → Authentication → Authorized domains.
 
 ---
 
