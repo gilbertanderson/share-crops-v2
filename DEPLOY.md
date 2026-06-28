@@ -111,6 +111,7 @@ vercel env add VITE_FIREBASE_STORAGE_BUCKET
 vercel env add VITE_FIREBASE_MESSAGING_SENDER_ID
 vercel env add VITE_FIREBASE_APP_ID
 vercel env add VITE_FIREBASE_MEASUREMENT_ID
+vercel env add VITE_FIREBASE_VAPID_KEY   # Firebase Console → Cloud Messaging → Web Push certificates
 
 # Frontend build-time — point the app at its own /api as the fallback:
 vercel env add VITE_FALLBACK_API_URL  # https://share-crops-marketplace.vercel.app/api/make-server-dd877831

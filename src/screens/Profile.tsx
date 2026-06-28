@@ -11,7 +11,7 @@ import { TomatoRow } from '@/components/atoms/Tomato';
 import { TomatoLoader } from '@/components/atoms/TomatoLoader';
 import { ImageWithFallback } from '@/components/atoms/ImageWithFallback';
 import { EditProfileSheet } from '@/components/modals/EditProfileSheet';
-import { requestPushToken } from '@/lib/firebaseMessaging';
+import { PushTokenError, requestPushToken } from '@/lib/firebaseMessaging';
 import { InstallPrompt } from '@/components/pwa/InstallPrompt';
 import { usePwaInstall } from '@/hooks/usePwaInstall';
 
@@ -75,11 +75,16 @@ export default function Profile() {
   const enablePush = useMutation({
     mutationFn: async () => {
       const token = await requestPushToken();
-      if (!token) throw new Error('Notifications unavailable or permission denied');
       await API.registerPushToken(token);
     },
     onSuccess: () => showToast('Notifications enabled'),
-    onError: (e: Error) => showToast(e.message || 'Could not enable notifications'),
+    onError: (e: Error) => {
+      const message =
+        e instanceof PushTokenError
+          ? e.message
+          : e.message || 'Could not enable notifications';
+      showToast(message);
+    },
   });
 
   const listingsQuery = useQuery({

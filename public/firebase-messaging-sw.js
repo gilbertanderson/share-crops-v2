@@ -1,7 +1,7 @@
 /* eslint-disable */
-// FCM background message handler. Runs in its own service-worker context, so it
-// cannot read import.meta.env — the (non-secret, public) Firebase web config is
-// inlined here. Keep these values in sync with .env.local / src/lib/firebase.ts.
+// DEPRECATED: FCM now runs inside /sw.js (one service worker per scope).
+// Kept so existing installs that activated this script before the merge keep
+// receiving background messages until they pick up the updated /sw.js.
 importScripts('https://www.gstatic.com/firebasejs/12.15.0/firebase-app-compat.js');
 importScripts('https://www.gstatic.com/firebasejs/12.15.0/firebase-messaging-compat.js');
 

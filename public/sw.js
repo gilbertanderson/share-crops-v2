@@ -1,6 +1,29 @@
-// Share Crops service worker — app-shell offline support.
-// Push handling lives in firebase-messaging-sw.js (separate FCM SW).
-const CACHE = 'sharecrops-shell-v2';
+// Share Crops service worker — app-shell offline support + FCM background push.
+// Firebase config is public (same values as src/lib/firebase.ts / .env.local).
+importScripts('https://www.gstatic.com/firebasejs/12.15.0/firebase-app-compat.js');
+importScripts('https://www.gstatic.com/firebasejs/12.15.0/firebase-messaging-compat.js');
+
+firebase.initializeApp({
+  apiKey: 'AIzaSyCEI7ej1xjvuv7BPfTo8GbSnPCkULiKjIU',
+  authDomain: 'share-crops-app.firebaseapp.com',
+  projectId: 'share-crops-app',
+  storageBucket: 'share-crops-app.firebasestorage.app',
+  messagingSenderId: '764953465643',
+  appId: '1:764953465643:web:9433426e334aed02a4eb6e',
+});
+
+const messaging = firebase.messaging();
+messaging.onBackgroundMessage((payload) => {
+  const { title, body } = payload.notification || {};
+  self.registration.showNotification(title || 'Share Crops', {
+    body: body || '',
+    icon: '/icon.svg',
+    badge: '/icon.svg',
+    data: payload.data || {},
+  });
+});
+
+const CACHE = 'sharecrops-shell-v3';
 const SHELL = [
   '/',
   '/index.html',
