@@ -46,6 +46,5 @@ createRoot(document.getElementById('root')!).render(
   </ErrorBoundary>
 );
 
-// App-shell service worker (PWA install + offline). Push uses a separate FCM
-// worker, registered on demand from requestPushToken().
+// App-shell service worker (PWA install, offline, and FCM background push).
 registerAppServiceWorker();

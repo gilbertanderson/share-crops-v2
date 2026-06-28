@@ -41,3 +41,7 @@ console.log('✓ required Vercel environment variables are present');
 if (!process.env.ANTHROPIC_API_KEY?.trim()) {
   console.warn('⚠ ANTHROPIC_API_KEY is not set — the ✨ Draft with AI button will return 503 until you add it and redeploy.');
 }
+
+if (!process.env.VITE_FIREBASE_VAPID_KEY?.trim()) {
+  console.warn('⚠ VITE_FIREBASE_VAPID_KEY is not set — Profile → Enable notifications will fail until you add it and redeploy.');
+}
