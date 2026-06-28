@@ -4,14 +4,7 @@
 importScripts('https://www.gstatic.com/firebasejs/12.15.0/firebase-app-compat.js');
 importScripts('https://www.gstatic.com/firebasejs/12.15.0/firebase-messaging-compat.js');
 
-firebase.initializeApp({
-  "apiKey": "fake-api-key",
-  "authDomain": "demo-share-crops.firebaseapp.com",
-  "projectId": "demo-share-crops",
-  "storageBucket": "demo-share-crops.appspot.com",
-  "messagingSenderId": "1234567890",
-  "appId": "1:1234567890:web:abcdef"
-});
+firebase.initializeApp(__FIREBASE_CONFIG__);
 
 const messaging = firebase.messaging();
 messaging.onBackgroundMessage((payload) => {

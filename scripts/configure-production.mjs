@@ -21,19 +21,28 @@ const ROOT = join(__dirname, '..');
 const PRODUCTION_ORIGIN = 'https://share-crops-marketplace.vercel.app';
 const API_BASE = `${PRODUCTION_ORIGIN}/api/make-server-dd877831`;
 
-/** Public Firebase web config — same values as public/firebase-messaging-sw.js */
-export const PRODUCTION_ENV = {
-  VITE_FIREBASE_API_KEY: 'AIzaSyCEI7ej1xjvuv7BPfTo8GbSnPCkULiKjIU',
-  VITE_FIREBASE_AUTH_DOMAIN: 'share-crops-app.firebaseapp.com',
-  VITE_FIREBASE_PROJECT_ID: 'share-crops-app',
-  VITE_FIREBASE_STORAGE_BUCKET: 'share-crops-app.firebasestorage.app',
-  VITE_FIREBASE_MESSAGING_SENDER_ID: '764953465643',
-  VITE_FIREBASE_APP_ID: '1:764953465643:web:9433426e334aed02a4eb6e',
-  FIREBASE_PROJECT_ID: 'share-crops-app',
-  VITE_FALLBACK_API_URL: API_BASE,
-  CORS_ORIGINS: `${PRODUCTION_ORIGIN},http://localhost:5173,http://localhost:4321`,
-  DEFAULT_ORIGIN: PRODUCTION_ORIGIN,
-};
+/** Public Firebase web config — read from env; never hardcode API keys in the repo. */
+function productionFirebaseEnv() {
+  const keys = [
+    'VITE_FIREBASE_API_KEY',
+    'VITE_FIREBASE_AUTH_DOMAIN',
+    'VITE_FIREBASE_PROJECT_ID',
+    'VITE_FIREBASE_STORAGE_BUCKET',
+    'VITE_FIREBASE_MESSAGING_SENDER_ID',
+    'VITE_FIREBASE_APP_ID',
+  ];
+  const fromEnv = Object.fromEntries(keys.map((k) => [k, process.env[k]?.trim()]));
+  const projectId = fromEnv.VITE_FIREBASE_PROJECT_ID;
+  return {
+    ...fromEnv,
+    FIREBASE_PROJECT_ID: process.env.FIREBASE_PROJECT_ID?.trim() || projectId || '',
+    VITE_FALLBACK_API_URL: API_BASE,
+    CORS_ORIGINS: `${PRODUCTION_ORIGIN},http://localhost:5173,http://localhost:4321`,
+    DEFAULT_ORIGIN: PRODUCTION_ORIGIN,
+  };
+}
+
+export const PRODUCTION_ENV = productionFirebaseEnv();
 
 const args = new Set(process.argv.slice(2));
 const runAll = args.size === 0;
@@ -51,8 +60,23 @@ function run(cmd, cmdArgs) {
 function printEnv() {
   console.log('\nPaste these in Vercel → Project → Settings → Environment Variables');
   console.log('(Production + Preview for each VITE_* and FIREBASE_PROJECT_ID)\n');
+  const missing = [
+    'VITE_FIREBASE_API_KEY',
+    'VITE_FIREBASE_AUTH_DOMAIN',
+    'VITE_FIREBASE_PROJECT_ID',
+    'VITE_FIREBASE_STORAGE_BUCKET',
+    'VITE_FIREBASE_MESSAGING_SENDER_ID',
+    'VITE_FIREBASE_APP_ID',
+  ].filter((k) => !PRODUCTION_ENV[k]);
+  if (missing.length) {
+    console.error('Missing Firebase config in your shell environment. Export these first:');
+    for (const key of missing) console.error(`  export ${key}=...`);
+    console.error('\nFetch values with:');
+    console.error('  npx -y firebase-tools@latest apps:sdkconfig WEB <APP_ID> --project <PROJECT_ID>\n');
+    process.exit(1);
+  }
   for (const [key, value] of Object.entries(PRODUCTION_ENV)) {
-    console.log(`${key}=${value}`);
+    if (value) console.log(`${key}=${value}`);
   }
   console.log('\nAlso confirm server-only secrets are already set:');
   console.log('  SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, SUPABASE_ANON_KEY,');
