@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import { useToast } from '@/components/atoms/Toast';
 import { validateEmail, validatePassword, LoginAttemptTracker } from '@/lib/security';
@@ -7,6 +7,8 @@ import {
   signUpWithEmail,
   signInWithEmail,
   signInWithGoogle,
+  consumeGoogleRedirectResult,
+  friendlyAuthError,
   sendVerificationEmail,
   reloadCurrentUser,
   sendPasswordReset,
@@ -14,31 +16,6 @@ import {
 } from '@/lib/firebaseAuth';
 
 type Mode = 'login' | 'signup';
-
-// Map the Firebase auth error codes the sign-in/up flows can throw to friendly,
-// non-enumerating copy (we don't reveal whether an email exists).
-function friendlyAuthError(err: unknown): string {
-  const code = (err as { code?: string })?.code ?? '';
-  switch (code) {
-    case 'auth/invalid-credential':
-    case 'auth/wrong-password':
-    case 'auth/user-not-found':
-      return 'Incorrect email or password.';
-    case 'auth/email-already-in-use':
-      return 'An account with that email already exists. Try logging in.';
-    case 'auth/weak-password':
-      return 'Please choose a stronger password (at least 6 characters).';
-    case 'auth/too-many-requests':
-      return 'Too many attempts. Please wait a bit and try again.';
-    case 'auth/popup-closed-by-user':
-    case 'auth/cancelled-popup-request':
-      return 'Google sign-in was cancelled.';
-    case 'auth/network-request-failed':
-      return 'Network error. Check your connection and try again.';
-    default:
-      return (err as Error)?.message || 'Something went wrong.';
-  }
-}
 
 export default function Auth() {
   const { refreshAuth, needsEmailVerification, logout } = useAuth();
@@ -49,6 +26,23 @@ export default function Auth() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+
+  // After a Google redirect sign-in the page reloads; consume the result here so
+  // failures surface as a toast instead of failing silently.
+  useEffect(() => {
+    let cancelled = false;
+    consumeGoogleRedirectResult()
+      .then(async (user) => {
+        if (cancelled || !user) return;
+        await refreshAuth();
+      })
+      .catch((err) => {
+        if (!cancelled) showToast(friendlyAuthError(err));
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [refreshAuth, showToast]);
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -95,11 +89,15 @@ export default function Auth() {
   };
 
   const oauth = async () => {
+    setError(null);
+    setBusy(true);
     try {
       await signInWithGoogle();
       await refreshAuth();
     } catch (err) {
       showToast(friendlyAuthError(err));
+    } finally {
+      setBusy(false);
     }
   };
 
@@ -170,8 +168,8 @@ export default function Auth() {
         <div className="divider">OR</div>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          <button type="button" className="btn btn-outline btn-block" onClick={oauth}>
-            Continue with Google
+          <button type="button" className="btn btn-outline btn-block" onClick={oauth} disabled={busy}>
+            {busy ? 'Please wait…' : 'Continue with Google'}
           </button>
         </div>
 

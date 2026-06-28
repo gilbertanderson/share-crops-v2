@@ -5,7 +5,13 @@
       "googleSignIn": {
         "oAuthBrandDisplayName": "Share Crops",
         "supportEmail": "gilbertjanderson@gmail.com",
-        "authorizedRedirectUris": ["https://share-crops-v2.vercel.app"]
+        "authorizedRedirectUris": [
+          "https://share-crops-v2.vercel.app",
+          "https://share-crops-app.web.app",
+          "https://share-crops-app.firebaseapp.com",
+          "http://localhost:5173",
+          "http://localhost:4321"
+        ]
       }
     }
   },
