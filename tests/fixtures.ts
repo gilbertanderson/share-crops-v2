@@ -1,4 +1,5 @@
 import type { Page, Route } from '@playwright/test';
+import { signInAsVerifiedUser } from './firebase-emulator';
 
 // Deterministic fixture data returned by the mocked backend.
 export const ME = {
@@ -87,6 +88,18 @@ function json(route: Route, body: unknown, status = 200) {
   return route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(body) });
 }
 
+/** Tiny PNG returned by mocked GET /images/:key (stable URL uploads). */
+const MOCK_IMAGE_BODY = Buffer.from(
+  'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==',
+  'base64',
+);
+
+function stableImageUrl(route: Route, key: string): string {
+  const url = new URL(route.request().url());
+  const prefix = url.pathname.split('/upload')[0] || url.pathname.replace(/\/images\/.*$/, '');
+  return `${url.origin}${prefix}/images/${key}`;
+}
+
 // Dispatches a mocked backend response based on the path suffix after the
 // API prefix. Used for both the primary and fallback hosts.
 async function dispatch(route: Route) {
@@ -100,6 +113,13 @@ async function dispatch(route: Route) {
   if (path.startsWith('/trending')) return json(route, { items: TRENDING });
   if (path.startsWith('/offers/my')) return json(route, { offers: [] });
   if (path.startsWith('/chat/threads')) return json(route, { threads: [] });
+  if (path === '/upload' && route.request().method() === 'POST') {
+    const key = `mock-${Date.now()}.png`;
+    return json(route, { success: true, url: stableImageUrl(route, key), path: key });
+  }
+  if (path.startsWith('/images/') && route.request().method() === 'GET') {
+    return route.fulfill({ status: 200, contentType: 'image/png', body: MOCK_IMAGE_BODY });
+  }
   if (path.startsWith('/listings/user/')) {
     const uid = path.split('/listings/user/')[1];
     return json(route, { listings: LISTINGS.filter((l) => l.sellerId === uid) });
@@ -137,14 +157,21 @@ export async function mockBackend(page: Page, opts: { primaryFails?: boolean } =
   });
   await page.route('**/fallback.test/api/make-server-dd877831/**', dispatch);
   await page.route('**/api/make-server-dd877831/**', async (route) => {
+    // Same pattern matches fallback.test — defer to that handler.
+    if (route.request().url().includes('fallback.test')) return route.fallback();
     if (opts.primaryFails) return json(route, { error: 'primary down' }, 500);
     return dispatch(route);
   });
 }
 
-/** Seed an auth token so the app boots into the authenticated shell. */
-export async function seedAuth(page: Page) {
-  await page.addInitScript(() => {
-    localStorage.setItem('sharecrops_token', 'test-token');
-  });
+/**
+ * Mock the API and sign in via Firebase Auth Emulator (replaces legacy seedAuth).
+ * Returns the emulator email used for this session.
+ */
+export async function setupAuthenticatedSession(
+  page: Page,
+  opts: { primaryFails?: boolean } = {},
+): Promise<string> {
+  await mockBackend(page, opts);
+  return signInAsVerifiedUser(page);
 }

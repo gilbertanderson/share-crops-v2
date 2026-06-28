@@ -34,13 +34,11 @@ Standard commands live in `package.json` and `README.md`; don't duplicate them.
   same-origin `/api/...` instead of the intercepted fallback host). Leave it
   unset. Leaving it unset means the app calls same-origin `/api/make-server-dd877831`.
 - **Auth gating is fully Firebase-driven** (`AuthContext` → `onAuthChange` +
-  `getIdToken()`). The legacy `seedAuth` localStorage `sharecrops_token` used by
-  several Playwright specs is no longer honored by the app, so the
-  `marketplace`, `_cap`, and `failover` specs currently fail regardless of
-  environment — they predate the Firebase-auth refactor. The `smoke` specs and
-  the two client-side `auth-firebase` specs (route gating + weak-password block)
-  pass with dummy Firebase config. The `screenshots` specs have no assertions
-  (they only capture images), so they "pass" trivially.
+  `getIdToken()`). E2E specs sign in through the **Firebase Auth Emulator**
+  (`tests/firebase-emulator.ts` → `setupAuthenticatedSession` in `fixtures.ts`).
+  The legacy `sharecrops_token` localStorage seed is no longer used.
+- E2E: `npm run test:e2e` (Playwright + Auth Emulator). Unit: `npm run test:unit`
+  (Node test runner for `scripts/check-vercel-env.mjs`).
 
 ### Local Firebase Auth without real credentials (Auth Emulator)
 Real signup/login can be exercised locally with the **Firebase Auth Emulator**
@@ -82,10 +80,12 @@ controlled):
 
 ### Testing
 - E2E: `npx playwright test` (Playwright auto-starts Vite on port 4321). Browser
- install: `npx playwright install chromium` (Chromium only; that's all the
- config uses). Uses system Chrome when bundled Chromium is unavailable (`channel: 'chrome'`).
+  install: `npx playwright install chromium` (Chromium only; that's all the
+  config uses). Uses system Chrome when bundled Chromium is unavailable (`channel: 'chrome'`).
+- Unit: `npm run test:unit` — Node built-in test runner for deploy scripts.
 - `tests/ai-draft.spec.ts` covers ✨ Draft with AI (Firebase Auth Emulator + mocked API).
   Starts the Auth Emulator via `playwright.global-setup.ts`.
+- `tests/upload.spec.ts` covers stable `/images/` upload URLs (mocked Blobs shape).
 - `tests/auth-firebase.spec.ts` "signup with a compliant password…" creates a
   user via Firebase Auth — point it at the Auth Emulator (above) to run it
   without real credentials/network.

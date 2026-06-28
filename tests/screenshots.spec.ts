@@ -1,5 +1,7 @@
-import { test, type Route } from '@playwright/test';
-import { ME, COMMUNITY, LISTINGS, TRENDING, MEMBERS, seedAuth } from './fixtures';
+import { test } from '@playwright/test';
+import type { Route } from '@playwright/test';
+import { ME, COMMUNITY, LISTINGS, TRENDING, MEMBERS } from './fixtures';
+import { signInAsVerifiedUser } from './firebase-emulator';
 
 // Richer fixtures so the screenshots show populated screens (offers, threads,
 // ratings) rather than empty states. Used only for visual capture.
@@ -90,8 +92,9 @@ const SHOTS: Array<{ name: string; path: string }> = [
 for (const shot of SHOTS) {
   test(`screenshot ${shot.name}`, async ({ page }) => {
     await page.setViewportSize({ width: 430, height: 932 });
-    await seedAuth(page);
     await page.route('**/functions/v1/make-server-dd877831/**', richBackend);
+    await page.route('**/api/make-server-dd877831/**', richBackend);
+    await signInAsVerifiedUser(page);
     await page.goto(shot.path);
     // Let queries settle and any tomato loader resolve.
     await page.waitForTimeout(1200);

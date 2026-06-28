@@ -11,6 +11,7 @@
     "preview": "vite preview",
     "test:e2e": "playwright test",
     "test:e2e:headed": "playwright test --headed",
+    "test:unit": "node --test tests/unit/**/*.test.mjs",
     "configure:production": "node scripts/configure-production.mjs"
   },
   "dependencies": {

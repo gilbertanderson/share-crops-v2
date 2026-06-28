@@ -230,21 +230,19 @@ Site: [sharecropsmarketplace](https://app.netlify.com/projects/sharecropsmarketp
 
 ### Build
 
-Netlify runs `npm install --include=dev && npm run build` and publishes `dist/`.
-`NODE_VERSION=22` is set in `netlify.toml`.
+Netlify runs `npm install --include=dev && node scripts/netlify-prebuild.mjs && npm run build`
+and publishes `dist/`. `NODE_VERSION=22` is set in `netlify.toml`.
 
-### Secret scanning (required for green deploys)
+`netlify-prebuild.mjs` deletes `api/index.js` (Vercel-only bundle) and forces
+placeholder Firebase keys unless `NETLIFY_INJECT_FIREBASE=true`.
 
-Netlify's post-build secret scanner flags Firebase web config baked into `dist/`
-and service worker files. Settings in `netlify.toml` (`SECRETS_SCAN_OMIT_PATHS`)
-are **not always applied** — configure in the Netlify UI:
+### Secret scanning
 
-1. Site → **Project configuration** → **Environment variables**
-2. Either set `SECRETS_SCAN_ENABLED=false`, **or** review flagged values and
-   **unmark** client-safe `VITE_FIREBASE_*` as secrets (they are public in every
-   browser build)
-3. For **real** Firebase auth on Netlify (not placeholder keys): set
-   `NETLIFY_INJECT_FIREBASE=true` plus plain `VITE_FIREBASE_*` vars in the UI
+Netlify's post-build secret scanner flags example tokens inside the Vercel API
+bundle and public Firebase config in `dist/`. This repo sets scan overrides in
+`netlify.toml` (`SECRETS_SCAN_ENABLED`, `SECRETS_SCAN_SMART_DETECTION_ENABLED`,
+`SECRETS_SCAN_OMIT_PATHS`). If deploy previews still fail, confirm those vars in
+the Netlify UI are not overridden back to enabled.
 
 By default, builds use **placeholder** Firebase keys so previews pass scanning;
 auth on the Netlify-hosted SPA will not work until you inject real values.
