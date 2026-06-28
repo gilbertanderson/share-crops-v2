@@ -1,0 +1,29 @@
+name: Netlify build
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  netlify-spa-build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+
+      - name: Install dependencies
+        run: npm install --include=dev
+
+      - name: Netlify prebuild + SPA build
+        run: node scripts/netlify-prebuild.mjs && npm run build
+        env:
+          CI: true
+          NETLIFY: true
+
+      - name: Verify publish output
+        run: test -f dist/index.html
