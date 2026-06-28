@@ -238,11 +238,14 @@ placeholder Firebase keys unless `NETLIFY_INJECT_FIREBASE=true`.
 
 ### Secret scanning
 
-Netlify's post-build secret scanner flags example tokens inside the committed
-Vercel API bundle and public Firebase config in `dist/`. This repo sets scan
-overrides in `netlify.toml` (`SECRETS_SCAN_ENABLED`, `SECRETS_SCAN_SMART_DETECTION_ENABLED`,
+Netlify's post-build secret scanner flags example tokens inside the Vercel API
+bundle and public Firebase config in `dist/`. This repo sets scan overrides in
+`netlify.toml` (`SECRETS_SCAN_ENABLED`, `SECRETS_SCAN_SMART_DETECTION_ENABLED`,
 `SECRETS_SCAN_OMIT_PATHS`). If deploy previews still fail, confirm those vars in
 the Netlify UI are not overridden back to enabled.
+
+By default, builds use **placeholder** Firebase keys so previews pass scanning;
+auth on the Netlify-hosted SPA will not work until you inject real values.
 
 ### Real Firebase on Netlify (optional)
 
