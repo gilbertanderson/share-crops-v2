@@ -8,6 +8,7 @@ import {
   signInWithEmail,
   signInWithGoogle,
   friendlyAuthError,
+  getFirebaseAuthConfigIssue,
   sendVerificationEmail,
   reloadCurrentUser,
   sendPasswordReset,
@@ -25,6 +26,7 @@ export default function Auth() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const configIssue = getFirebaseAuthConfigIssue();
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -112,6 +114,7 @@ export default function Auth() {
           <p>Trade what you grow with your community.</p>
         </div>
 
+        {configIssue && <div className="auth-error">{configIssue}</div>}
         {error && <div className="auth-error">{error}</div>}
         {authError && <div className="auth-error">{authError}</div>}
 

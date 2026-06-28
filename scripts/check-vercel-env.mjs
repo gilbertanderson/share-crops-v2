@@ -26,6 +26,16 @@ if (clientProject && serverProject && clientProject !== serverProject) {
   process.exit(1);
 }
 
+const authDomain = process.env.VITE_FIREBASE_AUTH_DOMAIN?.trim();
+if (authDomain && !/\.(firebaseapp\.com|web\.app)$/.test(authDomain)) {
+  console.error(
+    `VITE_FIREBASE_AUTH_DOMAIN must be <project>.firebaseapp.com, not your hosting URL.`,
+  );
+  console.error(`  Got: ${authDomain}`);
+  console.error('  Add your Vercel/custom hostname to Firebase Authorized domains instead.');
+  process.exit(1);
+}
+
 console.log('✓ required Vercel environment variables are present');
 
 if (!process.env.ANTHROPIC_API_KEY?.trim()) {

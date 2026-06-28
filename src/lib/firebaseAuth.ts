@@ -58,19 +58,28 @@ export function friendlyAuthError(err: unknown): string {
   }
 }
 
-function shouldUseGoogleRedirect(): boolean {
-  if (typeof window === 'undefined') return false;
-  if (/iPhone|iPad|iPod|Android/i.test(navigator.userAgent)) return true;
-  // Installed PWAs often block or break OAuth pop-ups.
-  return window.matchMedia('(display-mode: standalone)').matches;
-}
-
 function isPopupFallbackError(code: string): boolean {
   return (
     code === 'auth/popup-blocked' ||
     code === 'auth/operation-not-supported-in-this-environment' ||
     code === 'auth/web-storage-unsupported'
   );
+}
+
+/** Returns a user-visible hint when Firebase env is misconfigured. The most
+ *  common mistake is setting VITE_FIREBASE_AUTH_DOMAIN to the Vercel URL —
+ *  it must stay as <project>.firebaseapp.com; the hosting hostname only goes
+ *  in Firebase Console → Authorized domains. */
+export function getFirebaseAuthConfigIssue(): string | null {
+  const authDomain = import.meta.env.VITE_FIREBASE_AUTH_DOMAIN?.trim();
+  const projectId = import.meta.env.VITE_FIREBASE_PROJECT_ID?.trim();
+  if (!authDomain || !projectId) {
+    return 'Firebase is not fully configured for this build (missing VITE_FIREBASE_* env vars).';
+  }
+  if (!/\.(firebaseapp\.com|web\.app)$/.test(authDomain)) {
+    return `Firebase authDomain is set to "${authDomain}" but must be ${projectId}.firebaseapp.com — not your site URL. Keep authDomain on firebaseapp.com and add "${window.location.hostname}" to Firebase Authorized domains.`;
+  }
+  return null;
 }
 
 /** Create an account, set the display name, and send a verification email. The
@@ -95,17 +104,11 @@ export async function consumeGoogleRedirectResult(): Promise<User | null> {
   return result?.user ?? null;
 }
 
-/** Sign in with Google. Uses a full-page redirect on mobile/PWA (pop-ups are
- *  often blocked) and popup elsewhere, falling back to redirect if the popup
- *  fails. Google accounts are email-verified, so they pass the backend's
- *  email_verified gate immediately. Requires Google enabled + the app's domain
- *  in Firebase Authorized Domains (add "localhost" for local dev). */
+/** Sign in with Google via popup. Pop-ups stay on your current URL (no full-page
+ *  redirect), which is more reliable when using a custom or Vercel domain — only
+ *  the hostname must be in Firebase Authorized domains. Falls back to redirect
+ *  only when the browser blocks the pop-up. */
 export async function signInWithGoogle(): Promise<User> {
-  if (shouldUseGoogleRedirect()) {
-    await signInWithRedirect(auth, googleProvider);
-    return new Promise(() => {});
-  }
-
   try {
     return (await signInWithPopup(auth, googleProvider)).user;
   } catch (err) {

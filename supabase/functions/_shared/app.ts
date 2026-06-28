@@ -51,20 +51,18 @@ const CORS_ORIGINS = (() => {
 })();
 
 // Allow an origin if it's explicitly configured (CORS_ORIGINS), OR it's
-// localhost on any port (local dev), OR it's a share-crops-v2 Vercel deployment
-// (the production alias, the auto-generated project domain, or a preview URL).
-// Returning the origin string tells Hono to echo it in Access-Control-Allow-Origin.
+// localhost on any port (local dev), OR any Vercel preview/production URL.
 const isAllowedOrigin = (origin: string | undefined | null): string | null => {
   if (!origin) return null;
   if (CORS_ORIGINS.includes(origin)) return origin;
   if (/^http:\/\/localhost(:\d+)?$/.test(origin)) return origin;
-  if (/^https:\/\/share-crops-v2[a-z0-9-]*\.vercel\.app$/.test(origin)) return origin;
+  if (/^https:\/\/[a-z0-9-]+\.vercel\.app$/.test(origin)) return origin;
   return null;
 };
 
 const DEFAULT_ORIGIN = (() => {
   const origin = getEnv('DEFAULT_ORIGIN');
-  return origin?.trim() || 'https://sharecrops.app';
+  return origin?.trim() || 'https://share-crops-marketplace.vercel.app';
 })();
 
 const API_PREFIX = `make-server-${APP_ID}`;

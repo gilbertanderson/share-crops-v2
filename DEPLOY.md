@@ -35,8 +35,8 @@ fallback stays useful even if the Edge Functions runtime is down.
 | `KV_TABLE_NAME` | `kv_store_dd877831` | no |
 | `ADMIN_EMAIL` | **you must supply** (email that gets the admin role) | no |
 | `SEED_RATER_EMAIL` | optional (seed-data rater) | no |
-| `CORS_ORIGINS` | comma-separated allowed origins, e.g. `https://<app>.vercel.app,http://localhost:5173,http://localhost:4321` | no |
-| `DEFAULT_ORIGIN` | e.g. `https://<app>.vercel.app` | no |
+| `CORS_ORIGINS` | comma-separated allowed origins, e.g. `https://share-crops-marketplace.vercel.app,http://localhost:5173` | no |
+| `DEFAULT_ORIGIN` | e.g. `https://share-crops-marketplace.vercel.app` | no |
 | `ANTHROPIC_API_KEY` | **required for AI listing drafts** — Anthropic API key (`sk-ant-...`) | **yes** |
 | `ANTHROPIC_DRAFT_MODEL` | optional — defaults to `claude-haiku-4-5-20251001` | no |
 | `SKIP_INIT` | **Vercel only:** `true` (skips re-seeding on cold starts) | no |
@@ -63,8 +63,8 @@ supabase secrets set \
   APP_ID=dd877831 \
   STORAGE_BUCKET_NAME=make-dd877831-sharecrops \
   KV_TABLE_NAME=kv_store_dd877831 \
-  CORS_ORIGINS="https://<app>.vercel.app,http://localhost:5173,http://localhost:4321" \
-  DEFAULT_ORIGIN="https://<app>.vercel.app"
+  CORS_ORIGINS="https://share-crops-marketplace.vercel.app,http://localhost:5173,http://localhost:4321" \
+  DEFAULT_ORIGIN="https://share-crops-marketplace.vercel.app"
 
 supabase functions deploy make-server-dd877831
 ```
@@ -113,7 +113,7 @@ vercel env add VITE_FIREBASE_APP_ID
 vercel env add VITE_FIREBASE_MEASUREMENT_ID
 
 # Frontend build-time — point the app at its own /api as the fallback:
-vercel env add VITE_FALLBACK_API_URL  # https://<your-app>.vercel.app/api/make-server-dd877831
+vercel env add VITE_FALLBACK_API_URL  # https://share-crops-marketplace.vercel.app/api/make-server-dd877831
 ```
 
 Then deploy:
@@ -158,7 +158,7 @@ second rewrite serves the SPA for all non-`/api` paths.
 ```bash
 # Health check both backends:
 curl https://xwjvtpzpufhuybylnwzx.supabase.co/functions/v1/make-server-dd877831/health
-curl https://<app>.vercel.app/api/make-server-dd877831/health
+curl https://share-crops-marketplace.vercel.app/api/make-server-dd877831/health
 ```
 
 The e2e suite (`npm run test:e2e`) includes `tests/failover.spec.ts`, which
