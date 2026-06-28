@@ -1,6 +1,8 @@
 # Share Crops v2 — Netlify static SPA deploy.
 [build]
-  command = "npm run build"
+  # Netlify sets NODE_ENV=production during install, which skips devDependencies
+  # (typescript, vite, etc.). --include=dev ensures `tsc` and vite are available.
+  command = "npm ci --include=dev && npm run build"
   publish = "dist"
 
   [build.environment]
