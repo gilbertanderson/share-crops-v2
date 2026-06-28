@@ -2,18 +2,6 @@
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "buildCommand": "node scripts/check-vercel-env.mjs && node scripts/build-api.mjs && vite build",
   "outputDirectory": "dist",
-  "env": {
-    "VITE_FIREBASE_API_KEY": "AIzaSyCEI7ej1xjvuv7BPfTo8GbSnPCkULiKjIU",
-    "VITE_FIREBASE_AUTH_DOMAIN": "share-crops-app.firebaseapp.com",
-    "VITE_FIREBASE_PROJECT_ID": "share-crops-app",
-    "VITE_FIREBASE_STORAGE_BUCKET": "share-crops-app.firebasestorage.app",
-    "VITE_FIREBASE_MESSAGING_SENDER_ID": "764953465643",
-    "VITE_FIREBASE_APP_ID": "1:764953465643:web:9433426e334aed02a4eb6e",
-    "FIREBASE_PROJECT_ID": "share-crops-app",
-    "VITE_FALLBACK_API_URL": "https://share-crops-marketplace.vercel.app/api/make-server-dd877831",
-    "CORS_ORIGINS": "https://share-crops-v2.vercel.app,https://share-crops-marketplace.vercel.app,http://localhost:5173,http://localhost:4321",
-    "DEFAULT_ORIGIN": "https://share-crops-v2.vercel.app"
-  },
   "headers": [
     {
       "source": "/sw.js",
