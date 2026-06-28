@@ -136,7 +136,10 @@ export async function mockBackend(page: Page, opts: { primaryFails?: boolean } =
     return dispatch(route);
   });
   await page.route('**/fallback.test/api/make-server-dd877831/**', dispatch);
-  await page.route('**/api/make-server-dd877831/**', dispatch);
+  await page.route('**/api/make-server-dd877831/**', async (route) => {
+    if (opts.primaryFails) return json(route, { error: 'primary down' }, 500);
+    return dispatch(route);
+  });
 }
 
 /** Seed an auth token so the app boots into the authenticated shell. */

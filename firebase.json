@@ -6,8 +6,8 @@
         "oAuthBrandDisplayName": "Share Crops",
         "supportEmail": "gilbertjanderson@gmail.com",
         "authorizedRedirectUris": [
-          "https://share-crops-marketplace.vercel.app",
           "https://share-crops-v2.vercel.app",
+          "https://share-crops-marketplace.vercel.app",
           "https://share-crops-app.web.app",
           "https://share-crops-app.firebaseapp.com",
           "http://localhost:5173",

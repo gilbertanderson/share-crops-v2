@@ -62,7 +62,7 @@ const isAllowedOrigin = (origin: string | undefined | null): string | null => {
 
 const DEFAULT_ORIGIN = (() => {
   const origin = getEnv('DEFAULT_ORIGIN');
-  return origin?.trim() || 'https://share-crops-marketplace.vercel.app';
+  return origin?.trim() || 'https://share-crops-v2.vercel.app';
 })();
 
 const API_PREFIX = `make-server-${APP_ID}`;

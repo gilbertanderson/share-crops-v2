@@ -1,27 +1,32 @@
 #!/usr/bin/env node
 /**
- * Production setup helper for https://share-crops-marketplace.vercel.app
+ * Production setup helper.
  *
- * Run on your machine (not in cloud agents — needs your Vercel/Firebase login):
- *   node scripts/configure-production.mjs
+ * Main app URL:     https://share-crops-v2.vercel.app
+ * Fallback app URL: https://share-crops-marketplace.vercel.app
+ * Firebase auth:    share-crops-app.firebaseapp.com
  *
- * Or step by step:
- *   node scripts/configure-production.mjs --print-env   # copy into Vercel dashboard
- *   node scripts/configure-production.mjs --firebase      # deploy auth config
- *   node scripts/configure-production.mjs --deploy        # vercel --prod
+ * Run on your machine (needs Vercel + Firebase login):
+ *   npm run configure:production
  */
 
 import { spawnSync } from 'node:child_process';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import {
+  PRIMARY_APP_ORIGIN,
+  FALLBACK_APP_ORIGIN,
+  FALLBACK_API_BASE,
+  FIREBASE_AUTH_DOMAIN,
+  PRIMARY_API_BASE,
+  PRIMARY_HOSTNAME,
+  FALLBACK_HOSTNAME,
+} from './domains.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(__dirname, '..');
 
-const PRODUCTION_ORIGIN = 'https://share-crops-marketplace.vercel.app';
-const API_BASE = `${PRODUCTION_ORIGIN}/api/make-server-dd877831`;
-
-/** Public Firebase web config — read from env; never hardcode API keys in the repo. */
+/** Firebase web config from env — never hardcode API keys in the repo. */
 function productionFirebaseEnv() {
   const keys = [
     'VITE_FIREBASE_API_KEY',
@@ -36,9 +41,9 @@ function productionFirebaseEnv() {
   return {
     ...fromEnv,
     FIREBASE_PROJECT_ID: process.env.FIREBASE_PROJECT_ID?.trim() || projectId || '',
-    VITE_FALLBACK_API_URL: API_BASE,
-    CORS_ORIGINS: `${PRODUCTION_ORIGIN},http://localhost:5173,http://localhost:4321`,
-    DEFAULT_ORIGIN: PRODUCTION_ORIGIN,
+    VITE_FALLBACK_API_URL: FALLBACK_API_BASE,
+    CORS_ORIGINS: `${PRIMARY_APP_ORIGIN},${FALLBACK_APP_ORIGIN},http://localhost:5173,http://localhost:4321`,
+    DEFAULT_ORIGIN: PRIMARY_APP_ORIGIN,
   };
 }
 
@@ -72,17 +77,27 @@ function printEnv() {
     console.error('Missing Firebase config in your shell environment. Export these first:');
     for (const key of missing) console.error(`  export ${key}=...`);
     console.error('\nFetch values with:');
-    console.error('  npx -y firebase-tools@latest apps:sdkconfig WEB <APP_ID> --project <PROJECT_ID>\n');
+    console.error('  npx -y firebase-tools@latest apps:sdkconfig WEB <APP_ID> --project share-crops-app\n');
     process.exit(1);
+  }
+  if (PRODUCTION_ENV.VITE_FIREBASE_AUTH_DOMAIN !== FIREBASE_AUTH_DOMAIN) {
+    console.warn(
+      `\n⚠ VITE_FIREBASE_AUTH_DOMAIN should be ${FIREBASE_AUTH_DOMAIN}, not your Vercel URL.`,
+    );
   }
   for (const [key, value] of Object.entries(PRODUCTION_ENV)) {
     if (value) console.log(`${key}=${value}`);
   }
+  console.log('\nDomain roles:');
+  console.log(`  Primary (main):    ${PRIMARY_APP_ORIGIN}`);
+  console.log(`  Fallback (backup): ${FALLBACK_APP_ORIGIN}`);
+  console.log(`  Firebase auth:     ${FIREBASE_AUTH_DOMAIN}`);
   console.log('\nAlso confirm server-only secrets are already set:');
   console.log('  SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, SUPABASE_ANON_KEY,');
   console.log('  ADMIN_EMAIL, APP_ID, KV_TABLE_NAME, STORAGE_BUCKET_NAME, SKIP_INIT=true');
   console.log('\nFirebase Console → Authentication → Settings → Authorized domains:');
-  console.log('  share-crops-marketplace.vercel.app');
+  console.log(`  ${PRIMARY_HOSTNAME}`);
+  console.log(`  ${FALLBACK_HOSTNAME}`);
   console.log('  localhost');
 }
 
@@ -94,7 +109,9 @@ function deployVercel() {
   return run('npx', ['-y', 'vercel@latest', '--prod']);
 }
 
-console.log(`Share Crops production setup → ${PRODUCTION_ORIGIN}`);
+console.log('Share Crops production setup');
+console.log(`  Primary:  ${PRIMARY_APP_ORIGIN}`);
+console.log(`  Fallback: ${FALLBACK_APP_ORIGIN}`);
 
 if (runAll || args.has('--print-env')) printEnv();
 
@@ -116,8 +133,9 @@ if (runAll || args.has('--deploy')) {
 
 if (runAll) {
   console.log('\n--- After deploy, test ---');
-  console.log(`  ${PRODUCTION_ORIGIN}/login → Continue with Google`);
-  console.log(`  curl ${API_BASE}/health`);
+  console.log(`  ${PRIMARY_APP_ORIGIN}/login → Continue with Google`);
+  console.log(`  curl ${PRIMARY_API_BASE}/health`);
+  console.log(`  curl ${FALLBACK_API_BASE}/health`);
 }
 
 process.exit(ok ? 0 : 1);

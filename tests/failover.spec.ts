@@ -1,9 +1,9 @@
 import { test, expect } from '@playwright/test';
 import { mockBackend, seedAuth } from './fixtures';
 
-// The headline feature: when the primary Supabase backend errors, the app
-// transparently fails over to the Vercel-hosted backend.
-test('fails over to the Vercel backend when Supabase returns 5xx', async ({ page }) => {
+// The headline feature: when the primary same-origin API errors, the app
+// transparently fails over to the backup deployment (VITE_FALLBACK_API_URL).
+test('fails over to the backup API when the primary returns 5xx', async ({ page }) => {
   await seedAuth(page);
   // Primary returns 500 for every call; the fallback host serves the data.
   await mockBackend(page, { primaryFails: true });
