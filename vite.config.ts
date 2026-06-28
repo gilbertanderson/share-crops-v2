@@ -3,6 +3,26 @@ import path from 'path';
 import { execFileSync } from 'node:child_process';
 import react from '@vitejs/plugin-react';
 
+const NETLIFY_PLACEHOLDER_FIREBASE = {
+  VITE_FIREBASE_API_KEY: 'fake-api-key',
+  VITE_FIREBASE_AUTH_DOMAIN: 'demo-share-crops.firebaseapp.com',
+  VITE_FIREBASE_PROJECT_ID: 'demo-share-crops',
+  VITE_FIREBASE_STORAGE_BUCKET: 'demo-share-crops.appspot.com',
+  VITE_FIREBASE_MESSAGING_SENDER_ID: '1234567890',
+  VITE_FIREBASE_APP_ID: '1:1234567890:web:abcdef',
+};
+
+function applyNetlifyPlaceholderFirebaseEnv() {
+  const usePlaceholders =
+    process.env.NETLIFY === 'true' && process.env.NETLIFY_INJECT_FIREBASE !== 'true';
+  if (!usePlaceholders) return;
+  for (const [key, value] of Object.entries(NETLIFY_PLACEHOLDER_FIREBASE)) {
+    process.env[key] = value;
+  }
+}
+
+applyNetlifyPlaceholderFirebaseEnv();
+
 // Bundle the Vercel serverless function (api/index.js) as part of `vite build`.
 // Vercel's project Build Command is `vite build`, which would otherwise skip
 // scripts/build-api.mjs and leave no function — every /api/* request then falls

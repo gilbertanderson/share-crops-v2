@@ -19,6 +19,15 @@ const FIREBASE_KEYS = [
   'VITE_FIREBASE_APP_ID',
 ];
 
+const PLACEHOLDER_FIREBASE = {
+  VITE_FIREBASE_API_KEY: 'fake-api-key',
+  VITE_FIREBASE_AUTH_DOMAIN: 'demo-share-crops.firebaseapp.com',
+  VITE_FIREBASE_PROJECT_ID: 'demo-share-crops',
+  VITE_FIREBASE_STORAGE_BUCKET: 'demo-share-crops.appspot.com',
+  VITE_FIREBASE_MESSAGING_SENDER_ID: '1234567890',
+  VITE_FIREBASE_APP_ID: '1:1234567890:web:abcdef',
+};
+
 function decodeValue(key) {
   const direct = process.env[key]?.trim();
   if (direct) return direct;
@@ -41,6 +50,9 @@ const skipInject =
 
 if (skipInject) {
   if (existsSync(envProductionLocal)) unlinkSync(envProductionLocal);
+  for (const key of FIREBASE_KEYS) {
+    if (key in PLACEHOLDER_FIREBASE) process.env[key] = PLACEHOLDER_FIREBASE[key];
+  }
 } else if (lines.length) {
   writeFileSync(envProductionLocal, `${lines.join('\n')}\n`);
   for (const [key, value] of Object.entries(resolved)) {

@@ -56,6 +56,13 @@ function loadDotEnv(path) {
 }
 
 function resolveFirebaseEnv() {
+  const useNetlifyPlaceholders =
+    process.env.NETLIFY === 'true' && process.env.NETLIFY_INJECT_FIREBASE !== 'true';
+
+  if (useNetlifyPlaceholders) {
+    return { ...DEV_DEFAULTS };
+  }
+
   const fileEnv = {
     ...loadDotEnv(join(ROOT, '.env.production.local')),
     ...loadDotEnv(join(ROOT, '.env.local')),
