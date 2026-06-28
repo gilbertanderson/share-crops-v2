@@ -3,6 +3,7 @@ import { Navigate, Route, Routes } from 'react-router';
 import { useAuth } from '@/context/AuthContext';
 import { AppLayout } from '@/components/AppLayout';
 import { TomatoLoader } from '@/components/atoms/TomatoLoader';
+import { SpeedInsights } from '@vercel/speed-insights/react';
 
 const FullScreenLoader = (
   <div className="app">
@@ -38,6 +39,7 @@ export default function App() {
           <Route path="/login" element={<Auth />} />
           <Route path="*" element={<Navigate to="/login" replace />} />
         </Routes>
+        <SpeedInsights />
       </Suspense>
     );
   }
@@ -50,22 +52,26 @@ export default function App() {
           <Route path="/community-setup" element={<CommunitySetup />} />
           <Route path="*" element={<Navigate to="/community-setup" replace />} />
         </Routes>
+        <SpeedInsights />
       </Suspense>
     );
   }
 
   // Authenticated + set up → the full app shell with the bottom nav.
   return (
-    <Routes>
-      <Route element={<AppLayout />}>
-        <Route path="/marketplace" element={<Marketplace />} />
-        <Route path="/listing/:id" element={<ListingDetail />} />
-        <Route path="/offers" element={<Offers />} />
-        <Route path="/messages" element={<Messages />} />
-        <Route path="/messages/:threadId" element={<ChatThread />} />
-        <Route path="/profile" element={<Profile />} />
-      </Route>
-      <Route path="*" element={<Navigate to="/marketplace" replace />} />
-    </Routes>
+    <>
+      <Routes>
+        <Route element={<AppLayout />}>
+          <Route path="/marketplace" element={<Marketplace />} />
+          <Route path="/listing/:id" element={<ListingDetail />} />
+          <Route path="/offers" element={<Offers />} />
+          <Route path="/messages" element={<Messages />} />
+          <Route path="/messages/:threadId" element={<ChatThread />} />
+          <Route path="/profile" element={<Profile />} />
+        </Route>
+        <Route path="*" element={<Navigate to="/marketplace" replace />} />
+      </Routes>
+      <SpeedInsights />
+    </>
   );
 }
