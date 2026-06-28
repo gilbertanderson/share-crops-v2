@@ -14,6 +14,9 @@ function bundleApiFunction() {
     name: 'bundle-api-function',
     apply: 'build' as const,
     closeBundle() {
+      // Netlify hosts the static SPA only — skip bundling api/index.js so server
+      // secrets in the Netlify env are not embedded in build output for scanning.
+      if (process.env.NETLIFY === 'true') return;
       execFileSync('node', ['scripts/build-api.mjs'], { stdio: 'inherit' });
     },
   };
