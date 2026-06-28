@@ -1,16 +1,12 @@
 import { test, expect } from '@playwright/test';
 import { mockBackend } from './fixtures';
-import { ensureVerifiedEmulatorUser, signInViaUi } from './firebase-emulator';
-
-const PASSWORD = 'Test123456!';
+import { signInAsVerifiedUser, TEST_PASSWORD, testEmail } from './firebase-emulator';
 
 test.describe('AI listing draft', () => {
   test.beforeEach(async ({ page }) => {
-    const email = `draft+${Date.now()}@example.com`;
-    await ensureVerifiedEmulatorUser(email, PASSWORD);
+    const email = testEmail('draft');
     await mockBackend(page);
-    await signInViaUi(page, email, PASSWORD);
-    await expect(page).toHaveURL(/\/marketplace$/, { timeout: 15_000 });
+    await signInAsVerifiedUser(page, email, TEST_PASSWORD);
   });
 
   test('fills the description when Draft with AI succeeds', async ({ page }) => {
@@ -27,7 +23,8 @@ test.describe('AI listing draft', () => {
   });
 
   test('shows a clear message when the draft endpoint is not configured', async ({ page }) => {
-    await page.route('**/fallback.test/api/make-server-dd877831/listings/draft-description', async (route) => {
+    await page.route('**/api/make-server-dd877831/listings/draft-description', async (route) => {
+      if (route.request().method() !== 'POST') return route.fallback();
       await route.fulfill({
         status: 503,
         contentType: 'application/json',
