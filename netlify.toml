@@ -1,13 +1,10 @@
 # Share Crops v2 — Netlify static SPA deploy.
 [build]
-  # Netlify's default install omits devDependencies when NODE_ENV=production.
-  # NPM_FLAGS ensures typescript/vite are installed; then a normal build is enough.
-  command = "npm run build"
+  command = "npm ci --include=dev && npm run build"
   publish = "dist"
 
   [build.environment]
     NODE_VERSION = "22"
-    NPM_FLAGS = "--include=dev"
     # Firebase B64 + NETLIFY_INJECT_FIREBASE=true belong in Netlify UI when scan is off.
     # Placeholder keys are used by default so preview deploys pass secret scanning.
     VITE_FALLBACK_API_URL = "https://share-crops-marketplace.vercel.app/api/make-server-dd877831"
