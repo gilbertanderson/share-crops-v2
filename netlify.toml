@@ -11,6 +11,7 @@
     # Firebase B64 + NETLIFY_INJECT_FIREBASE=true belong in Netlify UI when scan is off.
     # Placeholder keys are used by default so preview deploys pass secret scanning.
     VITE_FALLBACK_API_URL = "https://share-crops-marketplace.vercel.app/api/make-server-dd877831"
+    SECRETS_SCAN_OMIT_PATHS = "api,dist"
 
 [[headers]]
   for = "/sw.js"
