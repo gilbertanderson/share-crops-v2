@@ -22,9 +22,12 @@ Standard commands live in `package.json` and `README.md`; don't duplicate them.
 ### Non-obvious gotchas
 - **The app crashes to a blank page if `VITE_FIREBASE_*` are empty.** `getAuth()`
   in `src/lib/firebase.ts` throws `auth/invalid-api-key` at module load with an
-  empty `apiKey`, taking down the whole SPA (even the login screen). Use
-  well-formed dummy `VITE_FIREBASE_*` values in `.env.local` to let the SPA boot
-  for UI work; real values are only needed for actual Firebase auth.
+ empty `apiKey`, taking down the whole SPA (even the login screen). Use
+ well-formed dummy `VITE_FIREBASE_*` values in `.env.local` to let the SPA boot
+ for UI work; real values are only needed for actual Firebase auth. The Cursor
+ Cloud startup update script auto-creates `.env.local` (with these dummy values
+ plus `VITE_FIREBASE_AUTH_EMULATOR_HOST=127.0.0.1:9099`) if it is missing, since
+ `.env.local` is gitignored; delete it to regenerate, or edit it for real creds.
 - **Do NOT set `VITE_FALLBACK_API_URL=` (empty) in `.env.local`.** Vite's
   `.env.local` overrides the value Playwright's `webServer` injects
   (`https://fallback.test/...`), which breaks the mocked specs (they hit
