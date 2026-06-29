@@ -35,9 +35,30 @@ jobs:
       - name: Verify publish output
         run: test -f dist/index.html
 
-      - uses: google-github-actions/auth@v2
-        with:
-          credentials_json: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
-
       - name: Deploy Hosting + Auth config
-        run: npx -y firebase-tools@latest deploy --only hosting,auth --project share-crops-app --non-interactive
+        env:
+          FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+        run: |
+          set -euo pipefail
+          if [ -n "${FIREBASE_TOKEN:-}" ]; then
+            echo "Deploying with FIREBASE_TOKEN…"
+            npx -y firebase-tools@latest deploy \
+              --only hosting,auth \
+              --project share-crops-app \
+              --non-interactive \
+              --token "$FIREBASE_TOKEN"
+          elif [ -n "${FIREBASE_SERVICE_ACCOUNT:-}" ]; then
+            echo "Deploying with FIREBASE_SERVICE_ACCOUNT…"
+            sa_file="${RUNNER_TEMP}/firebase-sa.json"
+            printf '%s' "$FIREBASE_SERVICE_ACCOUNT" > "$sa_file"
+            export GOOGLE_APPLICATION_CREDENTIALS="$sa_file"
+            npx -y firebase-tools@latest deploy \
+              --only hosting,auth \
+              --project share-crops-app \
+              --non-interactive
+          else
+            echo "::error::Firebase Hosting was not deployed — no GitHub Actions secret is configured."
+            echo "::error::Add FIREBASE_TOKEN (recommended: run \`npx firebase-tools login:ci\`) or FIREBASE_SERVICE_ACCOUNT to Settings → Secrets and variables → Actions. See DEPLOY.md §7."
+            exit 1
+          fi

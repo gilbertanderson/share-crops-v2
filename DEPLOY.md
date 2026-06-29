@@ -291,13 +291,34 @@ The SPA calls the Vercel APIs remotely (v2 first, then marketplace).
 
 ### One-time setup
 
-1. **GitHub secret** — add `FIREBASE_SERVICE_ACCOUNT` to the repo
-   (Settings → Secrets and variables → Actions). Paste the full JSON from
-   Firebase Console → Project settings → Service accounts → Generate new private key.
-2. **Authorized domains** — Firebase Console → Authentication → Settings →
+1. **GitHub Actions secret (required)** — the first deploy failed because no
+   credential was set, which is why `https://share-crops-app.web.app` shows
+   **Site not found**. Add **one** of:
+
+   **Option A — `FIREBASE_TOKEN` (recommended)**
+
+   ```bash
+   npx -y firebase-tools@latest login:ci
+   ```
+
+   Copy the token → GitHub → Settings → Secrets and variables → Actions →
+   **New repository secret** → name `FIREBASE_TOKEN`.
+
+   **Option B — `FIREBASE_SERVICE_ACCOUNT`**
+
+   Firebase Console → Project settings → Service accounts → Generate new private
+   key → paste the full JSON as secret `FIREBASE_SERVICE_ACCOUNT`.
+
+2. **Re-run deploy** — Actions → **Firebase deploy** → **Run workflow** (or push
+   to `main`). A successful run publishes the SPA to
+   `https://share-crops-app.web.app`.
+
+3. **Authorized domains** — Firebase Console → Authentication → Settings →
    Authorized domains: confirm `share-crops-app.web.app` is listed (default for Hosting).
-3. **CORS** — add the Firebase Hosting origins to `CORS_ORIGINS` on Vercel/Supabase
-   (already included in `scripts/domains.mjs` → `PRODUCTION_CORS_ORIGINS`).
+
+4. **CORS** — Firebase Hosting origins are in `PRODUCTION_CORS_ORIGINS`
+   (`scripts/domains.mjs`). Redeploy Vercel/Supabase if you added them after
+   the last backend deploy.
 
 ### CI deploy
 
