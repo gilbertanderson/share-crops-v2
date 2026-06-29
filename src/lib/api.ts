@@ -2,11 +2,14 @@ import { getIdToken } from '@/lib/firebaseAuth';
 import { resolveApiBases } from '@/lib/appDomains';
 import type { User, Listing, Offer, Thread, Message, Rating, Community } from '@/types';
 
-function shouldRetryOnAnotherBase(response: Response, isLast: boolean): boolean {
-  if (isLast) return false;
+function isHtmlResponse(response: Response): boolean {
   const contentType = response.headers.get('content-type') || '';
-  if (contentType.includes('text/html')) return true;
-  return response.status === 401 || response.status === 404 || response.status >= 500;
+  return contentType.includes('text/html');
+}
+
+function shouldRetryOnAnotherBase(response: Response, isLast: boolean): boolean {
+  if (isHtmlResponse(response)) return !isLast;
+  return !isLast && (response.status === 401 || response.status === 404 || response.status >= 500);
 }
 
 async function fetchWithFailover(endpoint: string, options: RequestInit): Promise<Response> {
@@ -22,11 +25,20 @@ async function fetchWithFailover(endpoint: string, options: RequestInit): Promis
         lastResponse = response;
         continue;
       }
+      if (isLast && isHtmlResponse(response)) {
+        throw new ApiError(
+          `API returned HTML instead of JSON from ${base}${endpoint}. Check that /api routes are deployed on this host.`,
+          502,
+        );
+      }
       return response;
     } catch (err) {
       if (!isLast) continue;
       throw err;
     }
+  }
+  if (lastResponse && isHtmlResponse(lastResponse)) {
+    throw new ApiError('API returned HTML instead of JSON. Check Vercel /api deployment.', 502);
   }
   return lastResponse!;
 }
@@ -99,7 +111,15 @@ export class API {
     endpoint: string,
     options: RequestInit = {}
   ): Promise<T> {
-    const token = await getIdToken();
+    let token: string | null = null;
+    try {
+      token = await getIdToken();
+    } catch (err) {
+      throw new ApiError(
+        (err as Error)?.message || 'Could not get a sign-in token. Try signing out and back in.',
+        401,
+      );
+    }
     const headers = new Headers(options.headers);
     if (!headers.has('Content-Type')) headers.set('Content-Type', 'application/json');
     if (token) headers.set('Authorization', `Bearer ${token}`);

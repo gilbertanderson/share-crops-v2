@@ -248,32 +248,37 @@ app.get("/make-server-dd877831/auth/me", async (c) => {
     return c.json({ error: "Unauthorized" }, 401);
   }
 
-  let profile = await db.getProfile(user.id);
+  try {
+    let profile = await db.getProfile(user.id);
 
-  // Auto-provision a profile for users created outside the email/password
-  // signup flow (e.g. Google OAuth), who have a valid Supabase identity but no
-  // app profile yet. Mirrors the shape written by /auth/signup.
-  if (!profile) {
-    const meta = user.user_metadata || {};
-    const rawName = meta.full_name || meta.name || user.email.split('@')[0];
-    profile = await db.upsertProfile({
-      id: user.id,
-      email: security.sanitizeString(user.email),
-      name: security.sanitizeString(String(rawName)),
-      bio: '',
-      socialUrl: '',
-      profilePhotoUrl: meta.avatar_url || meta.picture || '',
-      role: user.email.toLowerCase() === ADMIN_EMAIL ? 'admin' : 'general',
-    });
-    security.logSecurityEvent('oauth_user_provisioned', 'low', { userId: user.id });
-  } else if (
-    user.email.toLowerCase() === ADMIN_EMAIL &&
-    normalizeUserRole(profile.role) !== 'admin'
-  ) {
-    profile = await db.updateProfile(user.id, { role: 'admin' });
+    // Auto-provision a profile for users created outside the email/password
+    // signup flow (e.g. Google OAuth), who have a valid Supabase identity but no
+    // app profile yet. Mirrors the shape written by /auth/signup.
+    if (!profile) {
+      const meta = user.user_metadata || {};
+      const rawName = meta.full_name || meta.name || user.email.split('@')[0];
+      profile = await db.upsertProfile({
+        id: user.id,
+        email: security.sanitizeString(user.email),
+        name: security.sanitizeString(String(rawName)),
+        bio: '',
+        socialUrl: '',
+        profilePhotoUrl: meta.avatar_url || meta.picture || '',
+        role: user.email.toLowerCase() === ADMIN_EMAIL ? 'admin' : 'general',
+      });
+      security.logSecurityEvent('oauth_user_provisioned', 'low', { userId: user.id });
+    } else if (
+      user.email.toLowerCase() === ADMIN_EMAIL &&
+      normalizeUserRole(profile.role) !== 'admin'
+    ) {
+      profile = await db.updateProfile(user.id, { role: 'admin' });
+    }
+
+    return c.json({ user: profile });
+  } catch (error) {
+    console.error("Auth me error:", error);
+    return c.json({ error: "Failed to load profile" }, 500);
   }
-
-  return c.json({ user: profile });
 });
 
 // ===== COMMUNITY ROUTES =====

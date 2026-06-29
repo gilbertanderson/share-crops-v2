@@ -6,6 +6,15 @@ const required = [
   'VITE_FIREBASE_MESSAGING_SENDER_ID',
   'VITE_FIREBASE_APP_ID',
   'FIREBASE_PROJECT_ID',
+  // Server API — missing any of these crashes api/index.js at cold start and
+  // breaks /auth/me with a generic "Could not load your profile" in the browser.
+  'SUPABASE_URL',
+  'SUPABASE_SERVICE_ROLE_KEY',
+  'ADMIN_EMAIL',
+  'APP_ID',
+  'STORAGE_BUCKET_NAME',
+  'KV_TABLE_NAME',
+  'CORS_ORIGINS',
 ];
 
 const missing = required.filter((key) => !process.env[key]?.trim());

@@ -1,6 +1,8 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import type { User } from 'firebase/auth';
-import { API, ApiError, AuthManager, setUnauthorizedHandler } from '@/lib/api';
+import { auth } from '@/lib/firebase';
+import { API, AuthManager, setUnauthorizedHandler } from '@/lib/api';
+import { profileLoadError } from '@/lib/authErrors';
 import {
   onAuthChange,
   logout as firebaseLogout,
@@ -41,16 +43,6 @@ const UNAUTH: AuthState = {
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
-function profileLoadError(err: unknown): string {
-  if (err instanceof ApiError) {
-    if (err.status === 401) {
-      return `Signed in with Google, but the API rejected your session (401 on ${window.location.hostname}). Confirm Firebase Authorized domains include this host and that Vercel FIREBASE_PROJECT_ID is share-crops-app.`;
-    }
-    return err.message;
-  }
-  return 'Could not load your profile. Please try again.';
-}
-
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [state, setState] = useState<AuthState>({ ...UNAUTH, loading: true });
 
@@ -77,8 +69,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setState((prev) => ({ ...prev, loading: true, authError: null }));
     try {
       const { user: profile } = await API.getMe();
-      const communitiesData = await API.getMyCommunities();
-      const communityCount = communitiesData.communities?.length ?? 0;
+      let communityCount = 0;
+      try {
+        const communitiesData = await API.getMyCommunities();
+        communityCount = communitiesData.communities?.length ?? 0;
+      } catch (communitiesErr) {
+        // Profile is authoritative for sign-in; communities can load later in-app.
+        console.warn('Communities bootstrap failed:', communitiesErr);
+      }
       setState({
         isAuthenticated: true,
         needsEmailVerification: false,
@@ -100,7 +98,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const refreshAuth = useCallback(async () => {
-    await applyUser(currentUser.current);
+    // Use Firebase's current user — the ref can lag behind signInWithPopup by a tick.
+    await applyUser(auth.currentUser);
   }, [applyUser]);
 
   const clearAuthError = useCallback(() => {

@@ -15,6 +15,13 @@ const BASE_ENV = {
   VITE_FIREBASE_MESSAGING_SENDER_ID: '123',
   VITE_FIREBASE_APP_ID: '1:123:web:abc',
   FIREBASE_PROJECT_ID: 'share-crops-app',
+  SUPABASE_URL: 'https://example.supabase.co',
+  SUPABASE_SERVICE_ROLE_KEY: 'service-role-key',
+  ADMIN_EMAIL: 'admin@example.com',
+  APP_ID: 'dd877831',
+  STORAGE_BUCKET_NAME: 'make-dd877831-sharecrops',
+  KV_TABLE_NAME: 'kv_store_dd877831',
+  CORS_ORIGINS: 'https://share-crops-v2.vercel.app,http://localhost:5173',
 };
 
 function runChecker(extraEnv = {}) {
