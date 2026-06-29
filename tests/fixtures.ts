@@ -104,7 +104,9 @@ function stableImageUrl(route: Route, key: string): string {
 // API prefix. Used for both the primary and fallback hosts.
 async function dispatch(route: Route) {
   const url = new URL(route.request().url());
-  const path = url.pathname.split('/make-server-dd877831')[1] || '';
+  const marker = '/make-server-dd877831';
+  const markerIdx = url.pathname.indexOf(marker);
+  const path = markerIdx >= 0 ? url.pathname.slice(markerIdx + marker.length) : '';
 
   if (path === '/auth/me') return json(route, { user: ME });
   if (path === '/communities/mine') return json(route, { communities: [COMMUNITY], activeCommunityId: COMMUNITY.id });

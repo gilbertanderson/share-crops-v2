@@ -15,6 +15,11 @@ export const VERCEL_FALLBACK_APP_ORIGIN = 'https://share-crops-marketplace.verce
 export const NETLIFY_FALLBACK_APP_ORIGIN = 'https://sharecropsmarketplace.netlify.app';
 export const FIREBASE_AUTH_DOMAIN = 'share-crops-app.firebaseapp.com';
 export const API_PATH = '/api/make-server-dd877831';
+export const SUPABASE_PROJECT_REF = 'xwjvtpzpufhuybylnwzx';
+export const SUPABASE_EDGE_FUNCTION = 'make-server-dd877831';
+/** Supabase Edge Function base — routes are mounted at /make-server-dd877831/* inside the function. */
+export const SUPABASE_EDGE_API_BASE =
+  `https://${SUPABASE_PROJECT_REF}.supabase.co/functions/v1/${SUPABASE_EDGE_FUNCTION}/${SUPABASE_EDGE_FUNCTION}`;
 
 export const PRIMARY_API_BASE = `${PRIMARY_APP_ORIGIN}${API_PATH}`;
 export const VERCEL_FALLBACK_API_BASE = `${VERCEL_FALLBACK_APP_ORIGIN}${API_PATH}`;
@@ -40,3 +45,61 @@ export const PRODUCTION_CORS_ORIGINS = [
   'http://localhost:5173',
   'http://localhost:4321',
 ].join(',');
+
+export const SAME_ORIGIN_API_BASE = API_PATH;
+
+function uniqueBases(bases) {
+  return bases.filter((base, i, arr) => base && arr.indexOf(base) === i);
+}
+
+function withSupabaseEdgeFailover(bases) {
+  return uniqueBases([...bases, SUPABASE_EDGE_API_BASE]);
+}
+
+export function isVercelAppHost(hostname) {
+  return (
+    hostname === PRIMARY_HOSTNAME ||
+    hostname === VERCEL_FALLBACK_HOSTNAME ||
+    hostname.endsWith('.vercel.app')
+  );
+}
+
+export function isNetlifyFallbackHost(hostname) {
+  return hostname === NETLIFY_FALLBACK_HOSTNAME || hostname.endsWith('.netlify.app');
+}
+
+/**
+ * API bases to try, in order.
+ * - PRIMARY (v2): same-origin /api, marketplace Vercel API, then Supabase Edge.
+ * - VERCEL_FALLBACK (marketplace): same-origin /api, then Supabase Edge.
+ * - NETLIFY_FALLBACK: remote v2 API, marketplace API, then Supabase Edge.
+ */
+export function resolveApiBasesForHost(hostname, envFallback = '') {
+  const vercelFallbackApi = (envFallback || '').replace(/\/$/, '') || VERCEL_FALLBACK_API_BASE;
+
+  if (hostname === 'localhost' || hostname === '127.0.0.1') {
+    const bases = [SAME_ORIGIN_API_BASE];
+    if (vercelFallbackApi && vercelFallbackApi !== SAME_ORIGIN_API_BASE) {
+      bases.push(vercelFallbackApi);
+    }
+    return withSupabaseEdgeFailover(bases);
+  }
+
+  if (isNetlifyFallbackHost(hostname)) {
+    const remote = [PRIMARY_API_BASE];
+    if (vercelFallbackApi && vercelFallbackApi !== PRIMARY_API_BASE) {
+      remote.push(vercelFallbackApi);
+    }
+    return withSupabaseEdgeFailover(remote);
+  }
+
+  if (!isVercelAppHost(hostname)) {
+    return withSupabaseEdgeFailover(uniqueBases([PRIMARY_API_BASE, vercelFallbackApi]));
+  }
+
+  const bases = [SAME_ORIGIN_API_BASE];
+  if (hostname === PRIMARY_HOSTNAME && vercelFallbackApi && vercelFallbackApi !== SAME_ORIGIN_API_BASE) {
+    bases.push(vercelFallbackApi);
+  }
+  return withSupabaseEdgeFailover(bases);
+}
