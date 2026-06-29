@@ -10,7 +10,8 @@
     "test:e2e": "playwright test",
     "test:e2e:headed": "playwright test --headed",
     "netlify": "netlify",
-    "netlify:status": "netlify status"
+    "netlify:status": "netlify status",
+    "netlify:verify": "node scripts/verify-netlify-setup.mjs"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.105.0",

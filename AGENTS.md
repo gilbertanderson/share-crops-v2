@@ -83,11 +83,21 @@ controlled):
   Personal access tokens). The same token can back the optional Netlify Blobs
   image-storage path (`NETLIFY_BLOBS_TOKEN` + `NETLIFY_BLOBS_SITE_ID` in
   `.env.example`). CLI: `npm run netlify` / `npx netlify` (`netlify-cli` is a
-  devDependency). For Cloud Agents: add the token as a secret **and** allowlist
-  `api.netlify.com` in Network Access (cloud-agent egress blocks Netlify API
-  hosts by default — `curl https://api.netlify.com` returns no connection while
-  GitHub/npm work). Use MCP/CLI to create or link a site, read its Site ID, and
-  validate the Blobs upload → `/images/<key>` round-trip once env is set.
+  devDependency). For Cloud Agents:
+  1. Add secrets on [Cloud Agents → Secrets](https://cursor.com/dashboard/cloud-agents)
+     with these **exact names**:
+     - `NETLIFY_AUTH_TOKEN` — for `npm run netlify` / CLI (`netlify api`, `sites:list`)
+     - `NETLIFY_PERSONAL_ACCESS_TOKEN` — for `@netlify/mcp` (can be the same PAT value)
+     - `NETLIFY_BLOBS_SITE_ID` + `NETLIFY_BLOBS_TOKEN` — for the app's opt-in Blobs upload path
+  2. Allowlist `api.netlify.com` under Cloud Agents → Network Access (without it,
+     `curl`/`netlify api` fail with `ECONNRESET` at TLS).
+  3. **Restart the Cloud Agent** after changing secrets or the allowlist — a
+     running session does not pick them up reliably.
+  4. Stdio MCP on Cloud Agents: if `${NETLIFY_PERSONAL_ACCESS_TOKEN}` in
+     `.mcp.json` does not resolve, set the PAT in the **Cloud Agent MCP portal**
+     `env` block (literal value, encrypted server-side) and reload MCP.
+  Run `node scripts/verify-netlify-setup.mjs` to confirm token + egress before
+  validating the Blobs upload path.
 
 ### Testing
 - E2E: `npx playwright test` (Playwright auto-starts Vite on port 4321). Browser
