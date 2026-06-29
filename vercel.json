@@ -1,24 +1,4 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "buildCommand": "node scripts/generate-sw.mjs && node scripts/check-vercel-env.mjs && vite build",
-  "outputDirectory": "dist",
-  "headers": [
-    {
-      "source": "/sw.js",
-      "headers": [{ "key": "Cache-Control", "value": "no-cache" }]
-    },
-    {
-      "source": "/(.*)",
-      "headers": [
-        {
-          "key": "Cross-Origin-Opener-Policy",
-          "value": "same-origin-allow-popups"
-        }
-      ]
-    }
-  ],
-  "rewrites": [
-    { "source": "/api/(.*)", "destination": "/api/index?__path=$1" },
-    { "source": "/((?!api/).*)", "destination": "/index.html" }
-  ]
+  "buildCommand": "node scripts/generate-sw.mjs && node scripts/check-vercel-env.mjs && vite build && node scripts/build-vercel-output.mjs"
 }

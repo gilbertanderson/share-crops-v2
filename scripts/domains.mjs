@@ -22,9 +22,13 @@ export const FIREBASE_AUTH_DOMAIN = 'share-crops-app.firebaseapp.com';
 export const API_PATH = '/api/make-server-dd877831';
 export const SUPABASE_PROJECT_REF = 'xwjvtpzpufhuybylnwzx';
 export const SUPABASE_EDGE_FUNCTION = 'make-server-dd877831';
-/** Supabase Edge Function base — routes are mounted at /make-server-dd877831/* inside the function. */
+/**
+ * Supabase Edge Function API base. Supabase maps
+ * `/functions/v1/<fn>/auth/me` → Hono path `/<fn>/auth/me`, so this must NOT
+ * repeat the function slug (a double prefix 404s — see Supabase edge logs).
+ */
 export const SUPABASE_EDGE_API_BASE =
-  `https://${SUPABASE_PROJECT_REF}.supabase.co/functions/v1/${SUPABASE_EDGE_FUNCTION}/${SUPABASE_EDGE_FUNCTION}`;
+  `https://${SUPABASE_PROJECT_REF}.supabase.co/functions/v1/${SUPABASE_EDGE_FUNCTION}`;
 
 export const PRIMARY_API_BASE = `${PRIMARY_APP_ORIGIN}${API_PATH}`;
 export const VERCEL_FALLBACK_API_BASE = `${VERCEL_FALLBACK_APP_ORIGIN}${API_PATH}`;
