@@ -5,14 +5,19 @@
  * 2. VERCEL_FALLBACK — share-crops-marketplace.vercel.app (backup Vercel)
  * 3. SUPABASE_EDGE — Supabase Edge Function (tertiary failover when Vercel /api is down)
  * 4. NETLIFY_FALLBACK — sharecropsmarketplace.netlify.app (static hosting backup)
+ * 5. FIREBASE_HOSTING — share-crops-app.web.app (static hosting on Firebase CDN)
  */
 export const PRIMARY_HOSTNAME = 'share-crops-v2.vercel.app';
 export const VERCEL_FALLBACK_HOSTNAME = 'share-crops-marketplace.vercel.app';
 export const NETLIFY_FALLBACK_HOSTNAME = 'sharecropsmarketplace.netlify.app';
+export const FIREBASE_HOSTING_HOSTNAME = 'share-crops-app.web.app';
+export const FIREBASE_HOSTING_ALT_HOSTNAME = 'share-crops-app.firebaseapp.com';
 
 export const PRIMARY_APP_ORIGIN = 'https://share-crops-v2.vercel.app';
 export const VERCEL_FALLBACK_APP_ORIGIN = 'https://share-crops-marketplace.vercel.app';
 export const NETLIFY_FALLBACK_APP_ORIGIN = 'https://sharecropsmarketplace.netlify.app';
+export const FIREBASE_HOSTING_APP_ORIGIN = 'https://share-crops-app.web.app';
+export const FIREBASE_HOSTING_ALT_ORIGIN = 'https://share-crops-app.firebaseapp.com';
 
 /** Main sign-in URL — share Firebase auth with users. */
 export const PRIMARY_LOGIN_URL = `${PRIMARY_APP_ORIGIN}/login`;
@@ -40,6 +45,8 @@ export const AUTHORIZED_APP_HOSTNAMES = [
   PRIMARY_HOSTNAME,
   VERCEL_FALLBACK_HOSTNAME,
   NETLIFY_FALLBACK_HOSTNAME,
+  FIREBASE_HOSTING_HOSTNAME,
+  FIREBASE_HOSTING_ALT_HOSTNAME,
   'localhost',
 ] as const;
 
@@ -56,6 +63,15 @@ export function isNetlifyFallbackHost(hostname = window.location.hostname): bool
   return hostname === NETLIFY_FALLBACK_HOSTNAME || hostname.endsWith('.netlify.app');
 }
 
+export function isFirebaseHostingHost(hostname = window.location.hostname): boolean {
+  return (
+    hostname === FIREBASE_HOSTING_HOSTNAME ||
+    hostname === FIREBASE_HOSTING_ALT_HOSTNAME ||
+    hostname.endsWith('.web.app') ||
+    hostname.endsWith('.firebaseapp.com')
+  );
+}
+
 function uniqueBases(bases: string[]): string[] {
   return bases.filter((base, i, arr) => base && arr.indexOf(base) === i);
 }
@@ -68,7 +84,7 @@ function withSupabaseEdgeFailover(bases: string[]): string[] {
  * API bases to try, in order.
  * - PRIMARY (v2): same-origin /api, marketplace Vercel API, then Supabase Edge.
  * - VERCEL_FALLBACK (marketplace): same-origin /api, then Supabase Edge.
- * - NETLIFY_FALLBACK: remote v2 API, marketplace API, then Supabase Edge.
+ * - NETLIFY_FALLBACK / FIREBASE_HOSTING: remote v2 API, marketplace API, then Supabase Edge.
  */
 export function resolveApiBasesForHost(
   hostname: string,
@@ -84,7 +100,7 @@ export function resolveApiBasesForHost(
     return withSupabaseEdgeFailover(bases);
   }
 
-  if (isNetlifyFallbackHost(hostname)) {
+  if (isNetlifyFallbackHost(hostname) || isFirebaseHostingHost(hostname)) {
     const remote = [PRIMARY_API_BASE];
     if (vercelFallbackApi && vercelFallbackApi !== PRIMARY_API_BASE) {
       remote.push(vercelFallbackApi);

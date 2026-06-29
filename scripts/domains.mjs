@@ -9,10 +9,15 @@
  *
  * 3. NETLIFY_FALLBACK   — sharecropsmarketplace.netlify.app
  *    Static hosting fallback only (no /api). SPA calls Vercel APIs remotely.
+ *
+ * 4. FIREBASE_HOSTING   — share-crops-app.web.app (+ .firebaseapp.com)
+ *    Static hosting on Firebase CDN (no /api). SPA calls Vercel APIs remotely.
  */
 export const PRIMARY_APP_ORIGIN = 'https://share-crops-v2.vercel.app';
 export const VERCEL_FALLBACK_APP_ORIGIN = 'https://share-crops-marketplace.vercel.app';
 export const NETLIFY_FALLBACK_APP_ORIGIN = 'https://sharecropsmarketplace.netlify.app';
+export const FIREBASE_HOSTING_APP_ORIGIN = 'https://share-crops-app.web.app';
+export const FIREBASE_HOSTING_ALT_ORIGIN = 'https://share-crops-app.firebaseapp.com';
 export const FIREBASE_AUTH_DOMAIN = 'share-crops-app.firebaseapp.com';
 export const API_PATH = '/api/make-server-dd877831';
 export const SUPABASE_PROJECT_REF = 'xwjvtpzpufhuybylnwzx';
@@ -27,6 +32,8 @@ export const VERCEL_FALLBACK_API_BASE = `${VERCEL_FALLBACK_APP_ORIGIN}${API_PATH
 export const PRIMARY_HOSTNAME = 'share-crops-v2.vercel.app';
 export const VERCEL_FALLBACK_HOSTNAME = 'share-crops-marketplace.vercel.app';
 export const NETLIFY_FALLBACK_HOSTNAME = 'sharecropsmarketplace.netlify.app';
+export const FIREBASE_HOSTING_HOSTNAME = 'share-crops-app.web.app';
+export const FIREBASE_HOSTING_ALT_HOSTNAME = 'share-crops-app.firebaseapp.com';
 
 /** @deprecated Use VERCEL_FALLBACK_* — kept for older imports */
 export const FALLBACK_APP_ORIGIN = VERCEL_FALLBACK_APP_ORIGIN;
@@ -42,6 +49,8 @@ export const PRODUCTION_CORS_ORIGINS = [
   PRIMARY_APP_ORIGIN,
   VERCEL_FALLBACK_APP_ORIGIN,
   NETLIFY_FALLBACK_APP_ORIGIN,
+  FIREBASE_HOSTING_APP_ORIGIN,
+  FIREBASE_HOSTING_ALT_ORIGIN,
   'http://localhost:5173',
   'http://localhost:4321',
 ].join(',');
@@ -68,11 +77,20 @@ export function isNetlifyFallbackHost(hostname) {
   return hostname === NETLIFY_FALLBACK_HOSTNAME || hostname.endsWith('.netlify.app');
 }
 
+export function isFirebaseHostingHost(hostname) {
+  return (
+    hostname === FIREBASE_HOSTING_HOSTNAME ||
+    hostname === FIREBASE_HOSTING_ALT_HOSTNAME ||
+    hostname.endsWith('.web.app') ||
+    hostname.endsWith('.firebaseapp.com')
+  );
+}
+
 /**
  * API bases to try, in order.
  * - PRIMARY (v2): same-origin /api, marketplace Vercel API, then Supabase Edge.
  * - VERCEL_FALLBACK (marketplace): same-origin /api, then Supabase Edge.
- * - NETLIFY_FALLBACK: remote v2 API, marketplace API, then Supabase Edge.
+ * - NETLIFY_FALLBACK / FIREBASE_HOSTING: remote v2 API, marketplace API, then Supabase Edge.
  */
 export function resolveApiBasesForHost(hostname, envFallback = '') {
   const vercelFallbackApi = (envFallback || '').replace(/\/$/, '') || VERCEL_FALLBACK_API_BASE;
@@ -85,7 +103,7 @@ export function resolveApiBasesForHost(hostname, envFallback = '') {
     return withSupabaseEdgeFailover(bases);
   }
 
-  if (isNetlifyFallbackHost(hostname)) {
+  if (isNetlifyFallbackHost(hostname) || isFirebaseHostingHost(hostname)) {
     const remote = [PRIMARY_API_BASE];
     if (vercelFallbackApi && vercelFallbackApi !== PRIMARY_API_BASE) {
       remote.push(vercelFallbackApi);

@@ -32,6 +32,15 @@ describe('resolveApiBasesForHost', () => {
     ]);
   });
 
+  it('on Firebase Hosting tries remote Vercel APIs then Supabase Edge', () => {
+    const bases = resolveApiBasesForHost('share-crops-app.web.app');
+    assert.deepEqual(bases, [
+      PRIMARY_API_BASE,
+      VERCEL_FALLBACK_API_BASE,
+      SUPABASE_EDGE_API_BASE,
+    ]);
+  });
+
   it('on localhost tries same-origin, configured fallback, then Supabase Edge', () => {
     const bases = resolveApiBasesForHost('localhost', 'https://fallback.test/api/make-server-dd877831');
     assert.deepEqual(bases, [
