@@ -51,6 +51,14 @@ describe('check-vercel-env.mjs', () => {
     assert.match(result.stderr, /must match FIREBASE_PROJECT_ID/);
   });
 
+  it('accepts VITE_FIREBASE_* values supplied via *_B64 env vars', () => {
+    const result = runChecker({
+      VITE_FIREBASE_API_KEY: '',
+      VITE_FIREBASE_API_KEY_B64: Buffer.from('from-b64-key').toString('base64'),
+    });
+    assert.equal(result.status, 0, result.stderr || result.stdout);
+  });
+
   it('warns when only one Netlify Blobs var is set', () => {
     const result = runChecker({ NETLIFY_BLOBS_SITE_ID: 'site-id' });
     assert.equal(result.status, 0);

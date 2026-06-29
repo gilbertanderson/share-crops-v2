@@ -17,17 +17,34 @@ const required = [
   'CORS_ORIGINS',
 ];
 
-const missing = required.filter((key) => !process.env[key]?.trim());
+function envValue(key) {
+  const direct = process.env[key]?.trim();
+  if (direct) return direct;
+  const b64 = process.env[`${key}_B64`]?.trim();
+  if (!b64) return '';
+  return Buffer.from(b64, 'base64').toString('utf8').trim();
+}
+
+const missing = required.filter((key) => !envValue(key));
 
 if (missing.length) {
-  console.error('Missing required Vercel environment variables:');
+  const vercelEnv = process.env.VERCEL_ENV || 'unknown';
+  console.error(`Missing required Vercel environment variables (VERCEL_ENV=${vercelEnv}):`);
   for (const key of missing) console.error(`- ${key}`);
-  console.error('\nAdd them in Vercel Project Settings -> Environment Variables, then redeploy.');
+  console.error(
+    '\nAdd them in Vercel → Project Settings → Environment Variables.',
+  );
+  console.error(
+    'Scope each to Production AND Preview (missing Preview vars fails PR deploys).',
+  );
+  console.error(
+    'Apply the same server vars on BOTH projects: share-crops-v2 and share-crops-marketplace.',
+  );
   process.exit(1);
 }
 
-const clientProject = process.env.VITE_FIREBASE_PROJECT_ID?.trim();
-const serverProject = process.env.FIREBASE_PROJECT_ID?.trim();
+const clientProject = envValue('VITE_FIREBASE_PROJECT_ID');
+const serverProject = envValue('FIREBASE_PROJECT_ID');
 if (clientProject && serverProject && clientProject !== serverProject) {
   console.error(
     `VITE_FIREBASE_PROJECT_ID (${clientProject}) must match FIREBASE_PROJECT_ID (${serverProject}) for Google sign-in tokens to verify.`,
@@ -35,7 +52,7 @@ if (clientProject && serverProject && clientProject !== serverProject) {
   process.exit(1);
 }
 
-const authDomain = process.env.VITE_FIREBASE_AUTH_DOMAIN?.trim();
+const authDomain = envValue('VITE_FIREBASE_AUTH_DOMAIN');
 if (authDomain && !/\.(firebaseapp\.com|web\.app)$/.test(authDomain)) {
   console.error(
     `VITE_FIREBASE_AUTH_DOMAIN must be <project>.firebaseapp.com, not your hosting URL.`,

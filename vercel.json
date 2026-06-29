@@ -1,7 +1,13 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "buildCommand": "node scripts/generate-sw.mjs && node scripts/check-vercel-env.mjs && node scripts/build-api.mjs && vite build",
+  "buildCommand": "node scripts/generate-sw.mjs && node scripts/check-vercel-env.mjs && vite build",
   "outputDirectory": "dist",
+  "functions": {
+    "api/index.js": {
+      "memory": 1024,
+      "maxDuration": 60
+    }
+  },
   "headers": [
     {
       "source": "/sw.js",
