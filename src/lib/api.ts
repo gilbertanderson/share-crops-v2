@@ -1,28 +1,24 @@
 import { getIdToken } from '@/lib/firebaseAuth';
+import { resolveApiBases } from '@/lib/appDomains';
 import type { User, Listing, Offer, Thread, Message, Rating, Community } from '@/types';
 
-// Primary API is always same-origin (share-crops-v2.vercel.app in production).
-// VITE_FALLBACK_API_URL points at the backup deployment API (share-crops-marketplace).
-const PRIMARY_API_BASE = '/api/make-server-dd877831';
-const FALLBACK_API_BASE = (import.meta.env.VITE_FALLBACK_API_URL || '').replace(/\/$/, '') || null;
+function shouldRetryOnAnotherBase(response: Response, isLast: boolean): boolean {
+  if (isLast) return false;
+  const contentType = response.headers.get('content-type') || '';
+  if (contentType.includes('text/html')) return true;
+  return response.status === 401 || response.status === 404 || response.status >= 500;
+}
 
 async function fetchWithFailover(endpoint: string, options: RequestInit): Promise<Response> {
-  const bases = [PRIMARY_API_BASE];
-  if (
-    FALLBACK_API_BASE &&
-    FALLBACK_API_BASE !== PRIMARY_API_BASE &&
-    !bases.includes(FALLBACK_API_BASE)
-  ) {
-    bases.push(FALLBACK_API_BASE);
-  }
-
+  const bases = resolveApiBases();
   let lastResponse: Response | null = null;
+
   for (let i = 0; i < bases.length; i++) {
     const base = bases[i];
     const isLast = i === bases.length - 1;
     try {
       const response = await fetch(`${base}${endpoint}`, options);
-      if (response.status >= 500 && !isLast) {
+      if (shouldRetryOnAnotherBase(response, isLast)) {
         lastResponse = response;
         continue;
       }

@@ -43,7 +43,7 @@ export function friendlyAuthError(err: unknown): string {
       return 'Network error. Check your connection and try again.';
     case 'auth/unauthorized-domain':
     case 'auth/unauthorized-continue-uri':
-      return `Google sign-in is not allowed on ${window.location.hostname}. Add this domain under Firebase Console → Authentication → Settings → Authorized domains (use "localhost" for local dev, no https://).`;
+      return `Google sign-in is not allowed on ${window.location.hostname}. In Firebase Console → Authentication → Settings → Authorized domains, add: share-crops-v2.vercel.app, share-crops-marketplace.vercel.app, and localhost (no https://).`;
     case 'auth/app-not-authorized':
       return 'This app is not authorized for Firebase Auth. Check the Firebase API key restrictions and Authorized domains for your project.';
     case 'auth/operation-not-allowed':

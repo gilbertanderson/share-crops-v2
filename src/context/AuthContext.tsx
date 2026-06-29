@@ -44,7 +44,7 @@ const AuthContext = createContext<AuthContextValue | null>(null);
 function profileLoadError(err: unknown): string {
   if (err instanceof ApiError) {
     if (err.status === 401) {
-      return 'Signed in with Google, but the server rejected your session. Redeploy after confirming FIREBASE_PROJECT_ID matches VITE_FIREBASE_PROJECT_ID (share-crops-app).';
+      return `Signed in with Google, but the API rejected your session (401 on ${window.location.hostname}). Confirm Firebase Authorized domains include this host and that Vercel FIREBASE_PROJECT_ID is share-crops-app.`;
     }
     return err.message;
   }

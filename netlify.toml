@@ -6,10 +6,18 @@
   [build.environment]
     NODE_VERSION = "22"
     NETLIFY = "true"
+    # Real Firebase web SDK config (public client identifiers — not secrets).
+    NETLIFY_INJECT_FIREBASE = "true"
+    VITE_FIREBASE_API_KEY = "AIzaSyCEI7ej1xjvuv7BPfTo8GbSnPCkULiKjIU"
+    VITE_FIREBASE_AUTH_DOMAIN = "share-crops-app.firebaseapp.com"
+    VITE_FIREBASE_PROJECT_ID = "share-crops-app"
+    VITE_FIREBASE_STORAGE_BUCKET = "share-crops-app.firebasestorage.app"
+    VITE_FIREBASE_MESSAGING_SENDER_ID = "764953465643"
+    VITE_FIREBASE_APP_ID = "1:764953465643:web:9433426e334aed02a4eb6e"
+    # Static Netlify host → remote Vercel APIs (see src/lib/appDomains.ts).
     VITE_FALLBACK_API_URL = "https://share-crops-marketplace.vercel.app/api/make-server-dd877831"
     # Secret scanning: api/index.js (Vercel bundle) contains SDK doc example tokens.
     # Prebuild removes it; these vars disable scanning for this static SPA site.
-    # Values must be lowercase "false" (Netlify requirement).
     SECRETS_SCAN_ENABLED = "false"
     SECRETS_SCAN_SMART_DETECTION_ENABLED = "false"
     SECRETS_SCAN_OMIT_PATHS = "api/**,dist/**,node_modules/**,public/sw.js,public/firebase-messaging-sw.js"
