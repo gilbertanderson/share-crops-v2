@@ -76,6 +76,18 @@ controlled):
      blocked). Configure this under Cloud Agents settings.
   Cloud agents cannot perform step 1 themselves — it requires a human in the
   desktop IDE.
+- **Netlify** — `@netlify/mcp` (stdio, devDependency; launched from
+  `node_modules/@netlify/mcp/dist/netlify-mcp.js` per `.mcp.json`). Unlike
+  Vercel's OAuth-only remote MCP, Netlify MCP is **token-based**: set
+  `NETLIFY_PERSONAL_ACCESS_TOKEN` (Netlify → User settings → Applications →
+  Personal access tokens). The same token can back the optional Netlify Blobs
+  image-storage path (`NETLIFY_BLOBS_TOKEN` + `NETLIFY_BLOBS_SITE_ID` in
+  `.env.example`). CLI: `npm run netlify` / `npx netlify` (`netlify-cli` is a
+  devDependency). For Cloud Agents: add the token as a secret **and** allowlist
+  `api.netlify.com` in Network Access (cloud-agent egress blocks Netlify API
+  hosts by default — `curl https://api.netlify.com` returns no connection while
+  GitHub/npm work). Use MCP/CLI to create or link a site, read its Site ID, and
+  validate the Blobs upload → `/images/<key>` round-trip once env is set.
 
 ### Testing
 - E2E: `npx playwright test` (Playwright auto-starts Vite on port 4321). Browser

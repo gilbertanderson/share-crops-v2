@@ -10,12 +10,12 @@
       "note": "Official Vercel MCP server (https://mcp.vercel.com). OAuth-only: the first time it connects, Cursor shows a 'Needs login' prompt that must be authorized interactively from the Cursor desktop IDE. Headless/cloud agents cannot complete this OAuth flow, and cloud-agent network access must allowlist mcp.vercel.com. See AGENTS.md > 'Vercel MCP'."
     },
     "netlify": {
-      "command": "npx",
-      "args": ["-y", "@netlify/mcp"],
+      "command": "node",
+      "args": ["node_modules/@netlify/mcp/dist/netlify-mcp.js"],
       "env": {
         "NETLIFY_PERSONAL_ACCESS_TOKEN": "${NETLIFY_PERSONAL_ACCESS_TOKEN}"
       },
-      "note": "Official Netlify MCP server (@netlify/mcp, stdio). Requires a Netlify personal access token in NETLIFY_PERSONAL_ACCESS_TOKEN (Netlify > User settings > Applications > Personal access tokens). For Cloud Agents the token must be added as a secret AND the network allowlist must include api.netlify.com (currently blocked: api.netlify.com returns no connection from cloud-agent egress). Used to provision a site / read its Site ID and validate the Netlify Blobs upload path."
+      "note": "Official Netlify MCP server (@netlify/mcp, stdio; devDependency). Requires NETLIFY_PERSONAL_ACCESS_TOKEN (Netlify > User settings > Applications > Personal access tokens). For Cloud Agents add the token as a secret AND allowlist api.netlify.com. Used to provision a site, read its Site ID, and validate the Netlify Blobs upload path. See AGENTS.md > 'Netlify MCP'."
     }
   }
 }
