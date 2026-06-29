@@ -59,6 +59,30 @@ describe('check-vercel-env.mjs', () => {
     assert.equal(result.status, 0, result.stderr || result.stdout);
   });
 
+  it('warns but does not fail preview builds when server API vars are missing', () => {
+    const result = runChecker({
+      VERCEL_ENV: 'preview',
+      SUPABASE_URL: '',
+      SUPABASE_SERVICE_ROLE_KEY: '',
+      ADMIN_EMAIL: '',
+      APP_ID: '',
+      STORAGE_BUCKET_NAME: '',
+      KV_TABLE_NAME: '',
+      CORS_ORIGINS: '',
+    });
+    assert.equal(result.status, 0, result.stderr || result.stdout);
+    assert.match(result.stdout + result.stderr, /Preview build: server API env vars are missing/);
+  });
+
+  it('fails production builds when server API vars are missing', () => {
+    const result = runChecker({
+      VERCEL_ENV: 'production',
+      SUPABASE_URL: '',
+    });
+    assert.equal(result.status, 1);
+    assert.match(result.stderr, /Missing required server API environment variables/);
+  });
+
   it('warns when only one Netlify Blobs var is set', () => {
     const result = runChecker({ NETLIFY_BLOBS_SITE_ID: 'site-id' });
     assert.equal(result.status, 0);
