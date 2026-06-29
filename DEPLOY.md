@@ -36,7 +36,7 @@ fallback stays useful even if the Edge Functions runtime is down.
 | `KV_TABLE_NAME` | `kv_store_dd877831` | no |
 | `ADMIN_EMAIL` | **you must supply** (email that gets the admin role) | no |
 | `SEED_RATER_EMAIL` | optional (seed-data rater) | no |
-| `CORS_ORIGINS` | `https://share-crops-v2.vercel.app,https://share-crops-marketplace.vercel.app,http://localhost:5173` | no |
+| `CORS_ORIGINS` | `https://share-crops-v2.vercel.app,https://share-crops-marketplace.vercel.app,https://sharecropsmarketplace.netlify.app,http://localhost:5173` | no |
 | `DEFAULT_ORIGIN` | `https://share-crops-v2.vercel.app` (primary) | no |
 | `VITE_FALLBACK_API_URL` | `https://share-crops-marketplace.vercel.app/api/make-server-dd877831` (backup API) | no |
 | `VITE_FIREBASE_AUTH_DOMAIN` | `share-crops-app.firebaseapp.com` — **not** your Vercel URL | no |
@@ -68,7 +68,7 @@ supabase secrets set \
   APP_ID=dd877831 \
   STORAGE_BUCKET_NAME=make-dd877831-sharecrops \
   KV_TABLE_NAME=kv_store_dd877831 \
-  CORS_ORIGINS="https://share-crops-v2.vercel.app,https://share-crops-marketplace.vercel.app,http://localhost:5173,http://localhost:4321" \
+  CORS_ORIGINS="https://share-crops-v2.vercel.app,https://share-crops-marketplace.vercel.app,https://sharecropsmarketplace.netlify.app,http://localhost:5173,http://localhost:4321" \
   DEFAULT_ORIGIN="https://share-crops-v2.vercel.app"
 
 supabase functions deploy make-server-dd877831

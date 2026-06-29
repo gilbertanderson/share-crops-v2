@@ -8,6 +8,7 @@
         "authorizedRedirectUris": [
           "https://share-crops-v2.vercel.app",
           "https://share-crops-marketplace.vercel.app",
+          "https://sharecropsmarketplace.netlify.app",
           "https://share-crops-app.web.app",
           "https://share-crops-app.firebaseapp.com",
           "http://localhost:5173",

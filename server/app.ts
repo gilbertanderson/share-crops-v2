@@ -61,6 +61,7 @@ const isAllowedOrigin = (origin: string | undefined | null): string | null => {
   if (CORS_ORIGINS.includes(origin)) return origin;
   if (/^http:\/\/localhost(:\d+)?$/.test(origin)) return origin;
   if (/^https:\/\/[a-z0-9-]+\.vercel\.app$/.test(origin)) return origin;
+  if (/^https:\/\/[a-z0-9-]+\.netlify\.app$/.test(origin)) return origin;
   return null;
 };
 

@@ -21,6 +21,8 @@ import {
   PRIMARY_API_BASE,
   PRIMARY_HOSTNAME,
   FALLBACK_HOSTNAME,
+  NETLIFY_HOSTNAME,
+  PRODUCTION_CORS_ORIGINS,
 } from './domains.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -42,7 +44,7 @@ function productionFirebaseEnv() {
     ...fromEnv,
     FIREBASE_PROJECT_ID: process.env.FIREBASE_PROJECT_ID?.trim() || projectId || '',
     VITE_FALLBACK_API_URL: FALLBACK_API_BASE,
-    CORS_ORIGINS: `${PRIMARY_APP_ORIGIN},${FALLBACK_APP_ORIGIN},http://localhost:5173,http://localhost:4321`,
+    CORS_ORIGINS: PRODUCTION_CORS_ORIGINS,
     DEFAULT_ORIGIN: PRIMARY_APP_ORIGIN,
   };
 }
@@ -102,6 +104,7 @@ function printEnv() {
   console.log('\nFirebase Console → Authentication → Settings → Authorized domains:');
   console.log(`  ${PRIMARY_HOSTNAME}`);
   console.log(`  ${FALLBACK_HOSTNAME}`);
+  console.log(`  ${NETLIFY_HOSTNAME}`);
   console.log('  localhost');
 }
 
@@ -116,6 +119,7 @@ function deployVercel() {
 console.log('Share Crops production setup');
 console.log(`  Primary:  ${PRIMARY_APP_ORIGIN}`);
 console.log(`  Fallback: ${FALLBACK_APP_ORIGIN}`);
+console.log(`  Netlify:  https://${NETLIFY_HOSTNAME}`);
 
 if (runAll || args.has('--print-env')) printEnv();
 
