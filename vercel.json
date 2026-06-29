@@ -1,6 +1,6 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "buildCommand": "node scripts/generate-sw.mjs && node scripts/check-vercel-env.mjs && node scripts/build-api.mjs && vite build",
+  "buildCommand": "node scripts/generate-sw.mjs && node scripts/check-vercel-env.mjs && vite build",
   "outputDirectory": "dist",
   "headers": [
     {

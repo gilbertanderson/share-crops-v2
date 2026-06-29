@@ -1,5 +1,5 @@
 import { ApiError } from '@/lib/api';
-import { PRIMARY_LOGIN_URL, resolveApiBases } from '@/lib/appDomains';
+import { PRIMARY_LOGIN_URL, resolveApiBases, SUPABASE_EDGE_API_BASE } from '@/lib/appDomains';
 
 function isNetworkError(err: unknown): boolean {
   if (!(err instanceof Error)) return false;
@@ -20,7 +20,7 @@ export function profileLoadError(err: unknown): string {
       return `Signed in with Google, but the API rejected your session (401 on ${window.location.hostname}). Confirm Firebase Authorized domains include this host and that Vercel FIREBASE_PROJECT_ID is share-crops-app.`;
     }
     if (err.status === 502 || err.status === 503 || err.status === 504) {
-      return `The API is temporarily unavailable (${err.status}). Try again in a minute, or check that Vercel server env vars (SUPABASE_*, ADMIN_EMAIL, CORS_ORIGINS) are set and the deployment succeeded.`;
+      return `The API is temporarily unavailable (${err.status}). The app tried Vercel and the Supabase Edge backup (${SUPABASE_EDGE_API_BASE}). Try again in a minute, or check that Vercel server env vars (SUPABASE_*, ADMIN_EMAIL, CORS_ORIGINS) are set and the deployment succeeded.`;
     }
     return err.message;
   }

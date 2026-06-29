@@ -1,4 +1,4 @@
-const required = [
+const clientRequired = [
   'VITE_FIREBASE_API_KEY',
   'VITE_FIREBASE_AUTH_DOMAIN',
   'VITE_FIREBASE_PROJECT_ID',
@@ -6,8 +6,11 @@ const required = [
   'VITE_FIREBASE_MESSAGING_SENDER_ID',
   'VITE_FIREBASE_APP_ID',
   'FIREBASE_PROJECT_ID',
-  // Server API — missing any of these crashes api/index.js at cold start and
-  // breaks /auth/me with a generic "Could not load your profile" in the browser.
+];
+
+// Server API — missing any of these crashes api/index.js at cold start and
+// breaks /auth/me with a generic "Could not load your profile" in the browser.
+const serverRequired = [
   'SUPABASE_URL',
   'SUPABASE_SERVICE_ROLE_KEY',
   'ADMIN_EMAIL',
@@ -17,17 +20,54 @@ const required = [
   'CORS_ORIGINS',
 ];
 
-const missing = required.filter((key) => !process.env[key]?.trim());
+function envValue(key) {
+  const direct = process.env[key]?.trim();
+  if (direct) return direct;
+  const b64 = process.env[`${key}_B64`]?.trim();
+  if (!b64) return '';
+  return Buffer.from(b64, 'base64').toString('utf8').trim();
+}
 
-if (missing.length) {
-  console.error('Missing required Vercel environment variables:');
-  for (const key of missing) console.error(`- ${key}`);
-  console.error('\nAdd them in Vercel Project Settings -> Environment Variables, then redeploy.');
+const vercelEnv = process.env.VERCEL_ENV || 'unknown';
+const isProductionBuild = vercelEnv === 'production';
+
+const missingClient = clientRequired.filter((key) => !envValue(key));
+const missingServer = serverRequired.filter((key) => !envValue(key));
+
+if (missingClient.length) {
+  console.error(`Missing required Vercel environment variables (VERCEL_ENV=${vercelEnv}):`);
+  for (const key of missingClient) console.error(`- ${key}`);
+  console.error(
+    '\nAdd them in Vercel → Project Settings → Environment Variables.',
+  );
+  console.error(
+    'Scope each to Production AND Preview (missing Preview vars fails PR deploys).',
+  );
+  console.error(
+    'Apply the same vars on BOTH projects: share-crops-v2 and share-crops-marketplace.',
+  );
   process.exit(1);
 }
 
-const clientProject = process.env.VITE_FIREBASE_PROJECT_ID?.trim();
-const serverProject = process.env.FIREBASE_PROJECT_ID?.trim();
+if (missingServer.length) {
+  const lines = missingServer.map((key) => `- ${key}`).join('\n');
+  if (isProductionBuild) {
+    console.error(`Missing required server API environment variables (VERCEL_ENV=${vercelEnv}):`);
+    console.error(lines);
+    console.error(
+      '\nWithout these, /api returns 502 at runtime. Add them for Production (and Preview if you test API on PR deploys).',
+    );
+    process.exit(1);
+  }
+  console.warn(`⚠ Preview build: server API env vars are missing (VERCEL_ENV=${vercelEnv}):`);
+  console.warn(lines);
+  console.warn(
+    '\nThe SPA will build, but /api on this preview will 502 until you scope these to Preview in Vercel.',
+  );
+}
+
+const clientProject = envValue('VITE_FIREBASE_PROJECT_ID');
+const serverProject = envValue('FIREBASE_PROJECT_ID');
 if (clientProject && serverProject && clientProject !== serverProject) {
   console.error(
     `VITE_FIREBASE_PROJECT_ID (${clientProject}) must match FIREBASE_PROJECT_ID (${serverProject}) for Google sign-in tokens to verify.`,
@@ -35,7 +75,7 @@ if (clientProject && serverProject && clientProject !== serverProject) {
   process.exit(1);
 }
 
-const authDomain = process.env.VITE_FIREBASE_AUTH_DOMAIN?.trim();
+const authDomain = envValue('VITE_FIREBASE_AUTH_DOMAIN');
 if (authDomain && !/\.(firebaseapp\.com|web\.app)$/.test(authDomain)) {
   console.error(
     `VITE_FIREBASE_AUTH_DOMAIN must be <project>.firebaseapp.com, not your hosting URL.`,
