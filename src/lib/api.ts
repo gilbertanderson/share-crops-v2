@@ -1,5 +1,5 @@
 import { getIdToken } from '@/lib/firebaseAuth';
-import { resolveApiBases } from '@/lib/appDomains';
+import { isSupabaseEdgeBase, resolveApiBases } from '@/lib/appDomains';
 import type { User, Listing, Offer, Thread, Message, Rating, Community } from '@/types';
 
 function isHtmlResponse(response: Response): boolean {
@@ -12,6 +12,17 @@ function shouldRetryOnAnotherBase(response: Response, isLast: boolean): boolean 
   return !isLast && (response.status === 401 || response.status === 404 || response.status >= 500);
 }
 
+function headersForBase(base: string, options: RequestInit): Headers {
+  const headers = new Headers(options.headers);
+  if (isSupabaseEdgeBase(base)) {
+    const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+    if (anonKey) {
+      headers.set('apikey', anonKey);
+    }
+  }
+  return headers;
+}
+
 async function fetchWithFailover(endpoint: string, options: RequestInit): Promise<Response> {
   const bases = resolveApiBases();
   let lastResponse: Response | null = null;
@@ -20,7 +31,10 @@ async function fetchWithFailover(endpoint: string, options: RequestInit): Promis
     const base = bases[i];
     const isLast = i === bases.length - 1;
     try {
-      const response = await fetch(`${base}${endpoint}`, options);
+      const response = await fetch(`${base}${endpoint}`, {
+        ...options,
+        headers: headersForBase(base, options),
+      });
       if (shouldRetryOnAnotherBase(response, isLast)) {
         lastResponse = response;
         continue;

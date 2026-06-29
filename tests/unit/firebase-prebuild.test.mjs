@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { describe, it } from 'node:test';
@@ -19,6 +19,7 @@ const FIREBASE_ENV = {
 
 describe('firebase-prebuild.mjs', () => {
   it('removes api/index.js when present', () => {
+    const prior = existsSync(API_BUNDLE) ? readFileSync(API_BUNDLE, 'utf8') : null;
     mkdirSync(join(ROOT, 'api'), { recursive: true });
     writeFileSync(API_BUNDLE, '// temporary test bundle\n', 'utf8');
     const result = spawnSync(process.execPath, [SCRIPT], {
@@ -28,6 +29,7 @@ describe('firebase-prebuild.mjs', () => {
     });
     assert.equal(result.status, 0, result.stderr || result.stdout);
     assert.equal(existsSync(API_BUNDLE), false);
+    if (prior) writeFileSync(API_BUNDLE, prior, 'utf8');
   });
 
   it('fails when Firebase web config is missing', () => {

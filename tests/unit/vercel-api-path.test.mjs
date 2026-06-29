@@ -1,11 +1,13 @@
 import { spawnSync } from 'node:child_process';
+import { existsSync, statSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
-import { describe, it } from 'node:test';
+import { before, describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const API_BUNDLE = path.join(ROOT, 'api/index.js');
+const BUILD_API = path.join(ROOT, 'scripts/build-api.mjs');
 
 const ENV = {
   ADMIN_EMAIL: 'admin@example.com',
@@ -38,6 +40,13 @@ function runHandler(url) {
 }
 
 describe('Vercel API path restoration', () => {
+  before(() => {
+    if (!existsSync(API_BUNDLE) || statSync(API_BUNDLE).size < 10_000) {
+      const result = spawnSync(process.execPath, [BUILD_API], { cwd: ROOT, stdio: 'pipe' });
+      assert.equal(result.status, 0, result.stderr?.toString() || result.stdout?.toString());
+    }
+  });
+
   it('serves health on a full /api/... path', () => {
     const out = runHandler('https://share-crops-v2.vercel.app/api/make-server-dd877831/health');
     assert.equal(out.status, 200);

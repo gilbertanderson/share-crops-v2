@@ -30,7 +30,8 @@ export function profileLoadError(err: unknown): string {
 
   if (isNetworkError(err)) {
     const bases = resolveApiBases();
-    return `Could not reach the API (${bases.join(' → ')}). The server may be missing env vars on Vercel (SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, ADMIN_EMAIL, CORS_ORIGINS) or the deployment failed. Try again, or sign in at ${PRIMARY_LOGIN_URL}.`;
+    const healthUrl = `${window.location.origin}/api/make-server-dd877831/health`;
+    return `Could not reach the API (${bases.join(' → ')}). Open ${healthUrl} in a new tab — it should return JSON, not HTML. If it fails, confirm the latest Vercel deploy succeeded and server env vars are set (SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, ADMIN_EMAIL, CORS_ORIGINS). For Supabase Edge failover, set VITE_SUPABASE_ANON_KEY on Vercel. Try again, or sign in at ${PRIMARY_LOGIN_URL}.`;
   }
 
   if (err instanceof Error && err.message) {

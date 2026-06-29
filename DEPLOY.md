@@ -50,6 +50,7 @@ fallback stays useful even if the Edge Functions runtime is down.
 | `CORS_ORIGINS` | `https://share-crops-v2.vercel.app,https://share-crops-marketplace.vercel.app,https://sharecropsmarketplace.netlify.app,http://localhost:5173` | no |
 | `DEFAULT_ORIGIN` | `https://share-crops-v2.vercel.app` (primary) | no |
 | `VITE_FALLBACK_API_URL` | `https://share-crops-marketplace.vercel.app/api/make-server-dd877831` (backup API) | no |
+| `VITE_SUPABASE_ANON_KEY` | Supabase project **anon** key (Dashboard → API) — browser Edge failover | no |
 | `VITE_FIREBASE_AUTH_DOMAIN` | `share-crops-app.firebaseapp.com` — **not** your Vercel URL | no |
 | `ANTHROPIC_API_KEY` | **required for AI listing drafts** — Anthropic API key | **yes** |
 | `ANTHROPIC_DRAFT_MODEL` | optional — defaults to `claude-haiku-4-5-20251001` | no |
@@ -141,29 +142,30 @@ vercel --prod
 ```
 
 Build settings are in `vercel.json`. The `buildCommand` is
-`node scripts/check-vercel-env.mjs && node scripts/build-api.mjs && vite build`:
+`node scripts/generate-sw.mjs && node scripts/check-vercel-env.mjs && vite build && node scripts/build-vercel-output.mjs`:
 
 - **`scripts/check-vercel-env.mjs`** fails the deploy early if the Firebase
   browser config or server-side project id is missing. Without the
   `VITE_FIREBASE_*` values, the login screen throws `auth/invalid-api-key` at
   module load and renders blank. The API verifier uses `FIREBASE_PROJECT_ID` for
   Firebase ID-token issuer/audience checks.
-- **`scripts/build-api.mjs`** esbuild-bundles `server/entry.ts` into a single
-  self-contained `api/index.js` (git-ignored, generated). This is required: the
-  function imports the shared Hono backend from `supabase/functions/_shared`,
-  which uses Deno-style `.ts`-extension imports that Vercel's own file tracer
-  (`@vercel/nft`) can't follow — a plain `api/*.ts` ships without its dependency
-  and dies at runtime with `ERR_MODULE_NOT_FOUND`. Pre-bundling inlines every
-  local + npm dependency so there is nothing left to trace.
-- **`vite build`** produces the SPA in `dist`.
+- **`vite build`** produces the SPA in `dist` and, via a `closeBundle` hook in
+  `vite.config.ts`, runs **`scripts/build-api.mjs`** to esbuild-bundle
+  `server/entry.ts` into `api/index.js` (git-ignored).
+- **`scripts/build-vercel-output.mjs`** assembles the **Vercel Build Output API**
+  tree in `.vercel/output/` (static SPA + `functions/api/index.func`). This is
+  required: with `outputDirectory: dist`, Vercel ignores `api/index.js` written
+  outside `dist/` during the build, so `/api/*` silently 404s even though the
+  bundle step succeeded. Routing (API rewrite + SPA fallback) lives in
+  `.vercel/output/config.json`.
 
 `server/entry.ts` exports Web-standard per-method handlers (`GET`/`POST`/…) that
 delegate to Hono's native `app.fetch`. Vercel's Node runtime calls these with a
 Web `Request`. (Do **not** use `hono/vercel`'s `handle()` here — it assumes the
 legacy `(req, res)` Node signature and throws `req.headers.get is not a function`.)
 
-A `vercel.json` rewrite funnels every `/api/*` depth to the one function, and a
-second rewrite serves the SPA for all non-`/api` paths.
+A Build Output API route funnels every `/api/*` depth to the one function, and a
+second route serves the SPA for all non-`/api` paths.
 
 > **Chicken-and-egg:** `VITE_FALLBACK_API_URL` needs the final Vercel URL. Either
 > deploy once to learn the production domain, set the var, and redeploy; or set it
@@ -179,6 +181,10 @@ curl https://xwjvtpzpufhuybylnwzx.supabase.co/functions/v1/make-server-dd877831/
 curl https://share-crops-v2.vercel.app/api/make-server-dd877831/health
 curl https://share-crops-marketplace.vercel.app/api/make-server-dd877831/health
 ```
+
+Each should return JSON `{"status":"ok",...}` — not HTML. If Vercel returns 404,
+check the build log for `assembled .vercel/output` and confirm the deployment
+includes a Serverless Function (not just static files).
 
 The e2e suite (`npm run test:e2e`) includes `tests/failover.spec.ts`, which
 forces the primary to 5xx and asserts the app still loads via the fallback.
