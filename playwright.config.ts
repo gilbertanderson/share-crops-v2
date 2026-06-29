@@ -27,7 +27,16 @@ export default defineConfig({
     // Keep a video of every test for review (stored under test-results/<test>/video.webm).
     video: 'off',
   },
-  projects: [{ name: 'chromium', use: { ...devices['Desktop Chrome'], channel: 'chrome' } }],
+  projects: [{
+    name: 'chromium',
+    use: {
+      ...devices['Desktop Chrome'],
+      channel: 'chrome',
+      launchOptions: {
+        args: ['--disable-popup-blocking'],
+      },
+    },
+  }],
   webServer: {
     command: `npx vite --port ${PORT} --strictPort`,
     url: `http://localhost:${PORT}`,

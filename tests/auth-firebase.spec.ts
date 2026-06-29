@@ -1,9 +1,15 @@
 import { test, expect } from '@playwright/test';
+import { mockBackend } from './fixtures';
+import { signInWithGoogleViaEmulator } from './firebase-emulator';
 
 // Firebase auth flow. Unauthenticated users are routed to /login; signup is
 // gated by the client password policy and, once that passes, lands on the
 // "Check your email" verification screen (the backend rejects unverified-email
 // tokens, so the app holds the user there until they confirm).
+//
+// Google sign-in uses signInWithPopup against the Auth Emulator's mock OAuth UI
+// (not real accounts.google.com). Backend /auth/me is mocked so profile load
+// succeeds without a live API.
 //
 // NOTE: the happy-path signup test creates a real Firebase user (with a unique
 // throwaway address) and triggers a verification email — Firebase has no test
@@ -46,5 +52,19 @@ test.describe('Firebase auth', () => {
     await expect(page.getByRole('button', { name: "I've verified my email" })).toBeVisible();
     await expect(page.getByRole('button', { name: 'Resend verification email' })).toBeVisible();
     await expect(page.getByRole('button', { name: 'Use a different account' })).toBeVisible();
+  });
+
+  test('Google sign-in lands on marketplace', async ({ page }) => {
+    test.setTimeout(60_000);
+    await mockBackend(page);
+    const email = await signInWithGoogleViaEmulator(page);
+    expect(email).toMatch(/@/);
+    await expect(page.locator('.auth-error')).toHaveCount(0);
+    await expect(page.getByRole('heading', { name: 'Marketplace' })).toBeVisible();
+  });
+
+  test('shows Continue with Google on the login screen', async ({ page }) => {
+    await page.goto('/login');
+    await expect(page.getByRole('button', { name: 'Continue with Google' })).toBeVisible();
   });
 });

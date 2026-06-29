@@ -1,5 +1,5 @@
 import type { Page, Route } from '@playwright/test';
-import { signInAsVerifiedUser } from './firebase-emulator';
+import { signInAsVerifiedUser, signInWithGoogleViaEmulator } from './firebase-emulator';
 
 // Deterministic fixture data returned by the mocked backend.
 export const ME = {
@@ -176,4 +176,16 @@ export async function setupAuthenticatedSession(
 ): Promise<string> {
   await mockBackend(page, opts);
   return signInAsVerifiedUser(page);
+}
+
+/**
+ * Mock the API and sign in with Google via the Auth Emulator popup.
+ * Returns the mock Google account email chosen in the emulator UI.
+ */
+export async function setupGoogleAuthenticatedSession(
+  page: Page,
+  opts: { primaryFails?: boolean } = {},
+): Promise<string> {
+  await mockBackend(page, opts);
+  return signInWithGoogleViaEmulator(page);
 }
