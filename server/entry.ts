@@ -22,7 +22,35 @@ const root = new Hono();
 root.route('/api', app);
 root.route('/', app);
 
-const handler = (request: Request) => root.fetch(request);
+/**
+ * Vercel rewrites `/api/*` to a single `api/index.js` function. Depending on
+ * runtime, `request.url` may arrive as `/api` or `/api/index` without the
+ * subpath. Restore the original path from the rewrite query param or headers.
+ */
+function normalizeRequest(request: Request): Request {
+  const url = new URL(request.url);
+  const pathParam = url.searchParams.get('__path');
+  if (pathParam) {
+    url.searchParams.delete('__path');
+    const restored = new URL(`/api/${pathParam}${url.search}`, url.origin);
+    return new Request(restored, request);
+  }
+
+  if (url.pathname === '/api' || url.pathname === '/api/index') {
+    const invokePath =
+      request.headers.get('x-vercel-invoke-path') ||
+      request.headers.get('x-matched-path') ||
+      request.headers.get('x-forwarded-uri');
+    if (invokePath?.startsWith('/api/')) {
+      const restored = new URL(`${invokePath}${url.search}`, url.origin);
+      return new Request(restored, request);
+    }
+  }
+
+  return request;
+}
+
+const handler = (request: Request) => root.fetch(normalizeRequest(request));
 
 export const GET = handler;
 export const POST = handler;
