@@ -50,6 +50,7 @@ fallback stays useful even if the Edge Functions runtime is down.
 | `CORS_ORIGINS` | `https://share-crops-v2.vercel.app,https://share-crops-marketplace.vercel.app,https://sharecropsmarketplace.netlify.app,http://localhost:5173` | no |
 | `DEFAULT_ORIGIN` | `https://share-crops-v2.vercel.app` (primary) | no |
 | `VITE_FALLBACK_API_URL` | `https://share-crops-marketplace.vercel.app/api/make-server-dd877831` (backup API) | no |
+| `VITE_SUPABASE_ANON_KEY` | Supabase project **anon** key (Dashboard → API) — browser Edge failover | no |
 | `VITE_FIREBASE_AUTH_DOMAIN` | `share-crops-app.firebaseapp.com` — **not** your Vercel URL | no |
 | `ANTHROPIC_API_KEY` | **required for AI listing drafts** — Anthropic API key | **yes** |
 | `ANTHROPIC_DRAFT_MODEL` | optional — defaults to `claude-haiku-4-5-20251001` | no |
