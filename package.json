@@ -12,7 +12,8 @@
     "test:e2e": "playwright test",
     "test:e2e:headed": "playwright test --headed",
     "test:unit": "node --test tests/unit/**/*.test.mjs",
-    "configure:production": "node scripts/configure-production.mjs"
+    "configure:production": "node scripts/configure-production.mjs",
+    "deploy:firebase": "node scripts/firebase-prebuild.mjs && npm run build && npx -y firebase-tools@latest deploy --only hosting,auth --project share-crops-app"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.105.0",

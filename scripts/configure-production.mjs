@@ -22,6 +22,8 @@ import {
   VERCEL_FALLBACK_API_BASE,
   VERCEL_FALLBACK_HOSTNAME,
   NETLIFY_FALLBACK_HOSTNAME,
+  FIREBASE_HOSTING_HOSTNAME,
+  FIREBASE_HOSTING_ALT_HOSTNAME,
   FIREBASE_AUTH_DOMAIN,
   PRODUCTION_CORS_ORIGINS,
 } from './domains.mjs';
@@ -95,6 +97,7 @@ function printEnv() {
   console.log(`  Primary (main):       ${PRIMARY_APP_ORIGIN}/login`);
   console.log(`  Vercel backup:        ${VERCEL_FALLBACK_APP_ORIGIN}`);
   console.log(`  Netlify backup:       https://${NETLIFY_FALLBACK_HOSTNAME}`);
+  console.log(`  Firebase Hosting:     https://${FIREBASE_HOSTING_HOSTNAME}`);
   console.log(`  Firebase authDomain:  ${FIREBASE_AUTH_DOMAIN}`);
   console.log('\nAlso confirm server-only secrets are already set:');
   console.log('  SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, SUPABASE_ANON_KEY,');
@@ -107,11 +110,21 @@ function printEnv() {
   console.log(`  ${PRIMARY_HOSTNAME}`);
   console.log(`  ${VERCEL_FALLBACK_HOSTNAME}`);
   console.log(`  ${NETLIFY_FALLBACK_HOSTNAME}`);
+  console.log(`  ${FIREBASE_HOSTING_HOSTNAME}`);
+  console.log(`  ${FIREBASE_HOSTING_ALT_HOSTNAME}`);
   console.log('  localhost');
 }
 
-function deployFirebase() {
-  return run('npx', ['-y', 'firebase-tools@latest', 'deploy', '--only', 'auth', '--project', 'share-crops-app']);
+function deployFirebase(only = 'auth,hosting') {
+  return run('npx', [
+    '-y',
+    'firebase-tools@latest',
+    'deploy',
+    '--only',
+    only,
+    '--project',
+    'share-crops-app',
+  ]);
 }
 
 function deployVercel() {
@@ -122,14 +135,30 @@ console.log('Share Crops production setup');
 console.log(`  Primary (sign-in): ${PRIMARY_APP_ORIGIN}/login`);
 console.log(`  Vercel backup:     ${VERCEL_FALLBACK_APP_ORIGIN}`);
 console.log(`  Netlify backup:    https://${NETLIFY_FALLBACK_HOSTNAME}`);
+console.log(`  Firebase Hosting:  https://${FIREBASE_HOSTING_HOSTNAME}`);
 
 if (runAll || args.has('--print-env')) printEnv();
 
 let ok = true;
 if (runAll || args.has('--firebase')) {
-  console.log('\n--- Firebase auth deploy ---');
+  console.log('\n--- Firebase deploy (auth + hosting) ---');
   if (!deployFirebase()) {
     console.error('Firebase deploy failed. Run: npx firebase-tools login');
+    ok = false;
+  }
+}
+if (runAll || args.has('--firebase-auth')) {
+  console.log('\n--- Firebase auth deploy ---');
+  if (!deployFirebase('auth')) {
+    console.error('Firebase auth deploy failed. Run: npx firebase-tools login');
+    ok = false;
+  }
+}
+if (runAll || args.has('--firebase-hosting')) {
+  console.log('\n--- Firebase hosting deploy ---');
+  const built = run(process.execPath, [join(__dirname, 'firebase-prebuild.mjs')]) && run('npm', ['run', 'build']);
+  if (!built || !deployFirebase('hosting')) {
+    console.error('Firebase hosting deploy failed. Run: npx firebase-tools login');
     ok = false;
   }
 }

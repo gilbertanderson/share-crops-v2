@@ -276,6 +276,50 @@ Add the Netlify site hostname to Firebase → Authentication → Authorized doma
 
 ---
 
+## 7. Firebase Hosting (static SPA)
+
+`firebase.json` deploys the built SPA to **Firebase Hosting** at
+`https://share-crops-app.web.app` (and `https://share-crops-app.firebaseapp.com`).
+Like Netlify, this is a **static frontend only** — there is no `/api` function.
+The SPA calls the Vercel APIs remotely (v2 first, then marketplace).
+
+### One-time setup
+
+1. **GitHub secret** — add `FIREBASE_SERVICE_ACCOUNT` to the repo
+   (Settings → Secrets and variables → Actions). Paste the full JSON from
+   Firebase Console → Project settings → Service accounts → Generate new private key.
+2. **Authorized domains** — Firebase Console → Authentication → Settings →
+   Authorized domains: confirm `share-crops-app.web.app` is listed (default for Hosting).
+3. **CORS** — add the Firebase Hosting origins to `CORS_ORIGINS` on Vercel/Supabase
+   (already included in `scripts/domains.mjs` → `PRODUCTION_CORS_ORIGINS`).
+
+### CI deploy
+
+`.github/workflows/firebase-deploy.yml` runs on every push to `main` (and via
+**Actions → Firebase deploy → Run workflow**). It builds with
+`scripts/firebase-prebuild.mjs` and runs:
+
+```bash
+npx -y firebase-tools@latest deploy --only hosting,auth --project share-crops-app
+```
+
+The `auth` target syncs Google/email provider settings from `firebase.json`.
+
+### Local deploy
+
+Export the Firebase web config (or copy from `netlify.toml`), then:
+
+```bash
+export VITE_FIREBASE_API_KEY=...
+export VITE_FIREBASE_AUTH_DOMAIN=share-crops-app.firebaseapp.com
+# … remaining VITE_FIREBASE_* keys
+npm run deploy:firebase
+```
+
+Or: `npx firebase-tools login` then `npm run configure:production -- --firebase-hosting`.
+
+---
+
 ## ⚠️ Pre-existing bug found while porting
 
 The original backend called `kv.delete(...)` in 5 places (listing-delete and
