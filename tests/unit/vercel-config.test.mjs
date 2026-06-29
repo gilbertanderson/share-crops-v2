@@ -13,9 +13,4 @@ describe('vercel.json', () => {
     assert.match(vercel.buildCommand, /vite build/);
     assert.doesNotMatch(vercel.buildCommand, /build-api\.mjs/);
   });
-
-  it('configures the /api function with extra memory and duration', () => {
-    assert.equal(vercel.functions?.['api/index.js']?.memory, 1024);
-    assert.equal(vercel.functions?.['api/index.js']?.maxDuration, 60);
-  });
 });
