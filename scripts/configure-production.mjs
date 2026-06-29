@@ -2,9 +2,10 @@
 /**
  * Production setup helper.
  *
- * Main app URL:     https://share-crops-v2.vercel.app
- * Fallback app URL: https://share-crops-marketplace.vercel.app
- * Firebase auth:    share-crops-app.firebaseapp.com
+ * Main (sign-in):   https://share-crops-v2.vercel.app/login
+ * Vercel backup:   https://share-crops-marketplace.vercel.app
+ * Netlify backup:  https://sharecropsmarketplace.netlify.app (static only)
+ * Firebase auth:   share-crops-app.firebaseapp.com
  *
  * Run on your machine (needs Vercel + Firebase login):
  *   npm run configure:production
@@ -15,13 +16,13 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
   PRIMARY_APP_ORIGIN,
-  FALLBACK_APP_ORIGIN,
-  FALLBACK_API_BASE,
-  FIREBASE_AUTH_DOMAIN,
   PRIMARY_API_BASE,
   PRIMARY_HOSTNAME,
-  FALLBACK_HOSTNAME,
-  NETLIFY_HOSTNAME,
+  VERCEL_FALLBACK_APP_ORIGIN,
+  VERCEL_FALLBACK_API_BASE,
+  VERCEL_FALLBACK_HOSTNAME,
+  NETLIFY_FALLBACK_HOSTNAME,
+  FIREBASE_AUTH_DOMAIN,
   PRODUCTION_CORS_ORIGINS,
 } from './domains.mjs';
 
@@ -43,7 +44,7 @@ function productionFirebaseEnv() {
   return {
     ...fromEnv,
     FIREBASE_PROJECT_ID: process.env.FIREBASE_PROJECT_ID?.trim() || projectId || '',
-    VITE_FALLBACK_API_URL: FALLBACK_API_BASE,
+    VITE_FALLBACK_API_URL: VERCEL_FALLBACK_API_BASE,
     CORS_ORIGINS: PRODUCTION_CORS_ORIGINS,
     DEFAULT_ORIGIN: PRIMARY_APP_ORIGIN,
   };
@@ -91,9 +92,10 @@ function printEnv() {
     if (value) console.log(`${key}=${value}`);
   }
   console.log('\nDomain roles:');
-  console.log(`  Primary (main):    ${PRIMARY_APP_ORIGIN}`);
-  console.log(`  Fallback (backup): ${FALLBACK_APP_ORIGIN}`);
-  console.log(`  Firebase auth:     ${FIREBASE_AUTH_DOMAIN}`);
+  console.log(`  Primary (main):       ${PRIMARY_APP_ORIGIN}/login`);
+  console.log(`  Vercel backup:        ${VERCEL_FALLBACK_APP_ORIGIN}`);
+  console.log(`  Netlify backup:       https://${NETLIFY_FALLBACK_HOSTNAME}`);
+  console.log(`  Firebase authDomain:  ${FIREBASE_AUTH_DOMAIN}`);
   console.log('\nAlso confirm server-only secrets are already set:');
   console.log('  SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, SUPABASE_ANON_KEY,');
   console.log('  ADMIN_EMAIL, APP_ID, KV_TABLE_NAME, STORAGE_BUCKET_NAME, SKIP_INIT=true');
@@ -103,8 +105,8 @@ function printEnv() {
   console.log('  See DEPLOY.md §5. Without both, /upload keeps using Supabase Storage.');
   console.log('\nFirebase Console → Authentication → Settings → Authorized domains:');
   console.log(`  ${PRIMARY_HOSTNAME}`);
-  console.log(`  ${FALLBACK_HOSTNAME}`);
-  console.log(`  ${NETLIFY_HOSTNAME}`);
+  console.log(`  ${VERCEL_FALLBACK_HOSTNAME}`);
+  console.log(`  ${NETLIFY_FALLBACK_HOSTNAME}`);
   console.log('  localhost');
 }
 
@@ -117,9 +119,9 @@ function deployVercel() {
 }
 
 console.log('Share Crops production setup');
-console.log(`  Primary:  ${PRIMARY_APP_ORIGIN}`);
-console.log(`  Fallback: ${FALLBACK_APP_ORIGIN}`);
-console.log(`  Netlify:  https://${NETLIFY_HOSTNAME}`);
+console.log(`  Primary (sign-in): ${PRIMARY_APP_ORIGIN}/login`);
+console.log(`  Vercel backup:     ${VERCEL_FALLBACK_APP_ORIGIN}`);
+console.log(`  Netlify backup:    https://${NETLIFY_FALLBACK_HOSTNAME}`);
 
 if (runAll || args.has('--print-env')) printEnv();
 
@@ -143,7 +145,7 @@ if (runAll) {
   console.log('\n--- After deploy, test ---');
   console.log(`  ${PRIMARY_APP_ORIGIN}/login → Continue with Google`);
   console.log(`  curl ${PRIMARY_API_BASE}/health`);
-  console.log(`  curl ${FALLBACK_API_BASE}/health`);
+  console.log(`  curl ${VERCEL_FALLBACK_API_BASE}/health`);
 }
 
 process.exit(ok ? 0 : 1);

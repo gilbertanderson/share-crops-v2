@@ -14,7 +14,7 @@ import {
   type User,
 } from 'firebase/auth';
 import { auth } from '@/lib/firebase';
-import { AUTHORIZED_APP_HOSTNAMES } from '@/lib/appDomains';
+import { AUTHORIZED_APP_HOSTNAMES, PRIMARY_LOGIN_URL } from '@/lib/appDomains';
 
 const googleProvider = new GoogleAuthProvider();
 googleProvider.setCustomParameters({ prompt: 'select_account' });
@@ -44,7 +44,7 @@ export function friendlyAuthError(err: unknown): string {
       return 'Network error. Check your connection and try again.';
     case 'auth/unauthorized-domain':
     case 'auth/unauthorized-continue-uri':
-      return `Google sign-in is not allowed on ${window.location.hostname}. In Firebase Console → Authentication → Settings → Authorized domains, add: ${AUTHORIZED_APP_HOSTNAMES.join(', ')} (no https://).`;
+      return `Google sign-in is not allowed on ${window.location.hostname}. Add this host in Firebase → Authorized domains, or sign in at ${PRIMARY_LOGIN_URL}`;
     case 'auth/app-not-authorized':
       return 'This app is not authorized for Firebase Auth. Check the Firebase API key restrictions and Authorized domains for your project.';
     case 'auth/operation-not-allowed':

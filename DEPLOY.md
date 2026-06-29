@@ -1,5 +1,16 @@
 # Deploying Share Crops v2
 
+## Production URLs (priority order)
+
+| Role | URL | Notes |
+|------|-----|--------|
+| **Main (use this)** | `https://share-crops-v2.vercel.app` | Vercel SPA + `/api`. **Firebase auth is configured for this URL.** |
+| Vercel backup | `https://share-crops-marketplace.vercel.app` | Second Vercel deployment; API failover target |
+| Netlify backup | `https://sharecropsmarketplace.netlify.app` | Static SPA only when Vercel is down; calls Vercel APIs remotely |
+
+Firebase **authDomain** is always `share-crops-app.firebaseapp.com` (not your site URL).
+Add each **site hostname** to Firebase → Authentication → Authorized domains.
+
 The **same Hono backend** (`supabase/functions/_shared/app.ts`) runs on two runtimes:
 
 - **Supabase Edge Functions (primary)** — Deno, served at
@@ -221,10 +232,14 @@ automatically; re-upload photos or run a one-off refresh if needed.
 
 ---
 
-## 6. Netlify static SPA (optional mirror)
+## 6. Netlify static SPA (hosting fallback only)
 
-`netlify.toml` deploys the **frontend only** (no `/api` function). The SPA
-calls the Vercel fallback API via `VITE_FALLBACK_API_URL`.
+`netlify.toml` deploys a **fallback frontend** when Vercel is unavailable. It has
+**no `/api` function** — the SPA calls the **primary v2 Vercel API** first, then
+the marketplace Vercel API (`VITE_FALLBACK_API_URL`).
+
+> **Sign in at** `https://share-crops-v2.vercel.app/login` **for the supported
+> Firebase auth flow.** The Netlify URL is for continuity only.
 
 Site: [sharecropsmarketplace](https://app.netlify.com/projects/sharecropsmarketplace)
 
