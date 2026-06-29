@@ -144,7 +144,11 @@ export class API {
         data?.error ||
         data?.message ||
         data?.msg ||
-        (response.status === 401 ? 'Session expired. Please log in again.' : `Request failed (${response.status})`),
+        (response.status === 401
+          ? 'Session expired. Please log in again.'
+          : response.status === 404
+            ? `API route not found: ${endpoint}`
+            : `Request failed (${response.status})`),
         response.status
       );
     }

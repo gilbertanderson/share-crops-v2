@@ -19,6 +19,9 @@ export function profileLoadError(err: unknown): string {
     if (err.status === 401) {
       return `Signed in with Google, but the API rejected your session (401 on ${window.location.hostname}). Confirm Firebase Authorized domains include this host and that Vercel FIREBASE_PROJECT_ID is share-crops-app.`;
     }
+    if (err.status === 404) {
+      return `API route not found (404). The Vercel /api function may not be deployed — confirm the latest deploy succeeded and open ${window.location.origin}/api/make-server-dd877831/health in your browser (should return JSON, not HTML).`;
+    }
     if (err.status === 502 || err.status === 503 || err.status === 504) {
       return `The API is temporarily unavailable (${err.status}). The app tried Vercel and the Supabase Edge backup (${SUPABASE_EDGE_API_BASE}). Try again in a minute, or check that Vercel server env vars (SUPABASE_*, ADMIN_EMAIL, CORS_ORIGINS) are set and the deployment succeeded.`;
     }
