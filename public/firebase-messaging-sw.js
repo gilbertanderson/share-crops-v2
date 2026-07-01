@@ -7,12 +7,12 @@ importScripts('https://www.gstatic.com/firebasejs/12.15.0/firebase-app-compat.js
 importScripts('https://www.gstatic.com/firebasejs/12.15.0/firebase-messaging-compat.js');
 
 firebase.initializeApp({
-  "apiKey": "fake-api-key",
-  "authDomain": "demo-share-crops.firebaseapp.com",
-  "projectId": "demo-share-crops",
-  "storageBucket": "demo-share-crops.appspot.com",
-  "messagingSenderId": "1234567890",
-  "appId": "1:1234567890:web:abcdef"
+  "apiKey": "AIzaSyCEI7ej1xjvuv7BPfTo8GbSnPCkULiKjIU",
+  "authDomain": "share-crops-app.firebaseapp.com",
+  "projectId": "share-crops-app",
+  "storageBucket": "share-crops-app.firebasestorage.app",
+  "messagingSenderId": "764953465643",
+  "appId": "1:764953465643:web:9433426e334aed02a4eb6e"
 });
 
 const messaging = firebase.messaging();
