@@ -51,13 +51,15 @@ const CORS_ORIGINS = (() => {
 })();
 
 // Allow an origin if it's explicitly configured (CORS_ORIGINS), OR it's
-// localhost on any port (local dev), OR any Vercel preview/production URL.
+// localhost on any port (local dev), OR any hosted preview/production URL.
 const isAllowedOrigin = (origin: string | undefined | null): string | null => {
   if (!origin) return null;
   if (CORS_ORIGINS.includes(origin)) return origin;
   if (/^http:\/\/localhost(:\d+)?$/.test(origin)) return origin;
   if (/^https:\/\/[a-z0-9-]+\.vercel\.app$/.test(origin)) return origin;
   if (/^https:\/\/[a-z0-9-]+\.netlify\.app$/.test(origin)) return origin;
+  if (/^https:\/\/[a-z0-9-]+\.web\.app$/.test(origin)) return origin;
+  if (/^https:\/\/[a-z0-9-]+\.firebaseapp\.com$/.test(origin)) return origin;
   return null;
 };
 
