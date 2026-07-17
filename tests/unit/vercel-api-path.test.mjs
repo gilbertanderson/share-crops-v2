@@ -1,12 +1,10 @@
 import { spawnSync } from 'node:child_process';
-import { existsSync, statSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 import { before, describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '../..');
-const API_BUNDLE = path.join(ROOT, 'api/index.js');
 const BUILD_API = path.join(ROOT, 'scripts/build-api.mjs');
 
 const ENV = {
@@ -39,12 +37,37 @@ function runHandler(url) {
   return JSON.parse(jsonLine);
 }
 
+function runOptions(url, origin) {
+  const script = `
+    import { OPTIONS } from './api/index.js';
+    const res = await OPTIONS(new Request(${JSON.stringify(url)}, {
+      method: 'OPTIONS',
+      headers: {
+        Origin: ${JSON.stringify(origin)},
+        'Access-Control-Request-Method': 'GET',
+      },
+    }));
+    console.log(JSON.stringify({
+      status: res.status,
+      allowOrigin: res.headers.get('access-control-allow-origin'),
+    }));
+  `;
+  const result = spawnSync(process.execPath, ['--input-type=module', '-e', script], {
+    cwd: ROOT,
+    env: { ...process.env, ...ENV },
+    encoding: 'utf8',
+  });
+  assert.equal(result.status, 0, result.stderr || result.stdout);
+  const lines = (result.stdout || '').trim().split('\n');
+  const jsonLine = [...lines].reverse().find((line) => line.startsWith('{'));
+  assert.ok(jsonLine, `expected JSON line in stdout: ${result.stdout}`);
+  return JSON.parse(jsonLine);
+}
+
 describe('Vercel API path restoration', () => {
   before(() => {
-    if (!existsSync(API_BUNDLE) || statSync(API_BUNDLE).size < 10_000) {
-      const result = spawnSync(process.execPath, [BUILD_API], { cwd: ROOT, stdio: 'pipe' });
-      assert.equal(result.status, 0, result.stderr?.toString() || result.stdout?.toString());
-    }
+    const result = spawnSync(process.execPath, [BUILD_API], { cwd: ROOT, stdio: 'pipe' });
+    assert.equal(result.status, 0, result.stderr?.toString() || result.stdout?.toString());
   });
 
   it('serves health on a full /api/... path', () => {
@@ -62,5 +85,14 @@ describe('Vercel API path restoration', () => {
   it('returns 404 when rewrite strips path with no restoration hint', () => {
     const out = runHandler('https://share-crops-v2.vercel.app/api');
     assert.equal(out.status, 404);
+  });
+
+  it('allows Firebase Hosting origins to call the remote API', () => {
+    const out = runOptions(
+      'https://share-crops-v2.vercel.app/api/make-server-dd877831/health',
+      'https://share-crops-app.web.app',
+    );
+    assert.equal(out.status, 204);
+    assert.equal(out.allowOrigin, 'https://share-crops-app.web.app');
   });
 });
