@@ -292,16 +292,18 @@ export const getOffer = async (id: string) => {
   return offerFromRow(data);
 };
 
-// accept / decline — sets status and the matching timestamp column.
+// accept / decline — only pending offers may transition from seller action.
 export const setOfferStatus = async (id: string, status: "accepted" | "declined") => {
   const stamp = status === "accepted" ? "accepted_at" : "declined_at";
   const { data, error } = await db()
     .from("offers")
     .update({ status, [stamp]: new Date().toISOString() })
     .eq("id", id)
+    .eq("status", "pending")
     .select()
-    .single();
+    .maybeSingle();
   if (error) throw new Error(error.message);
+  if (!data) return null;
   return offerFromRow(data);
 };
 
