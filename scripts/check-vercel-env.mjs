@@ -87,12 +87,6 @@ if (authDomain && !/\.(firebaseapp\.com|web\.app)$/.test(authDomain)) {
 
 console.log('✓ required Vercel environment variables are present');
 
-if (!process.env.VITE_SUPABASE_ANON_KEY?.trim()) {
-  console.warn(
-    '⚠ VITE_SUPABASE_ANON_KEY is not set — Supabase Edge API failover from the browser will fail until you add the project anon key and redeploy.',
-  );
-}
-
 if (!process.env.ANTHROPIC_API_KEY?.trim()) {
   console.warn('⚠ ANTHROPIC_API_KEY is not set — the ✨ Draft with AI button will return 503 until you add it and redeploy.');
 }

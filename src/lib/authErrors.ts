@@ -1,5 +1,5 @@
 import { ApiError } from '@/lib/api';
-import { PRIMARY_LOGIN_URL, resolveApiBases, SUPABASE_EDGE_API_BASE } from '@/lib/appDomains';
+import { PRIMARY_LOGIN_URL, resolveApiBases } from '@/lib/appDomains';
 
 function isNetworkError(err: unknown): boolean {
   if (!(err instanceof Error)) return false;
@@ -23,7 +23,7 @@ export function profileLoadError(err: unknown): string {
       return `API route not found (404). The Vercel /api function may not be deployed — confirm the latest deploy succeeded and open ${window.location.origin}/api/make-server-dd877831/health in your browser (should return JSON, not HTML).`;
     }
     if (err.status === 502 || err.status === 503 || err.status === 504) {
-      return `The API is temporarily unavailable (${err.status}). The app tried Vercel and the Supabase Edge backup (${SUPABASE_EDGE_API_BASE}). Try again in a minute, or check that Vercel server env vars (SUPABASE_*, ADMIN_EMAIL, CORS_ORIGINS) are set and the deployment succeeded.`;
+      return `The API is temporarily unavailable (${err.status}). The app tried the configured Vercel API endpoints. Try again in a minute, or check that Vercel server env vars (SUPABASE_*, ADMIN_EMAIL, CORS_ORIGINS) are set and the deployment succeeded.`;
     }
     return err.message;
   }
@@ -31,7 +31,7 @@ export function profileLoadError(err: unknown): string {
   if (isNetworkError(err)) {
     const bases = resolveApiBases();
     const healthUrl = `${window.location.origin}/api/make-server-dd877831/health`;
-    return `Could not reach the API (${bases.join(' → ')}). Open ${healthUrl} in a new tab — it should return JSON, not HTML. If it fails, confirm the latest Vercel deploy succeeded and server env vars are set (SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, ADMIN_EMAIL, CORS_ORIGINS). For Supabase Edge failover, set VITE_SUPABASE_ANON_KEY on Vercel. Try again, or sign in at ${PRIMARY_LOGIN_URL}.`;
+    return `Could not reach the API (${bases.join(' → ')}). Open ${healthUrl} in a new tab — it should return JSON, not HTML. If it fails, confirm the latest Vercel deploy succeeded and server env vars are set (SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, ADMIN_EMAIL, CORS_ORIGINS). Try again, or sign in at ${PRIMARY_LOGIN_URL}.`;
   }
 
   if (err instanceof Error && err.message) {

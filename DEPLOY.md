@@ -11,26 +11,26 @@
 Firebase **authDomain** is always `share-crops-app.firebaseapp.com` (not your site URL).
 Add each **site hostname** to Firebase → Authentication → Authorized domains.
 
-The **same Hono backend** (`supabase/functions/_shared/app.ts`) runs on two runtimes:
+The supported Hono backend runs on Vercel Serverless Functions:
 
-- **Supabase Edge Functions (primary)** — Deno, served at
-  `https://<project>.supabase.co/functions/v1/make-server-dd877831`
-- **Vercel Serverless Functions (fallback)** — Node, served at
+- **Primary Vercel** — Node, served at
+  `https://share-crops-v2.vercel.app/api/make-server-dd877831`
+- **Marketplace Vercel fallback** — Node, served at
   `https://<app>.vercel.app/api/make-server-dd877831`
 
-The frontend calls the **primary** same-origin `/api` first and automatically fails over to
-`VITE_FALLBACK_API_URL` (the share-crops-marketplace deployment) on a network error or 5xx
-(see `fetchWithFailover` in `src/lib/api.ts`).
-Both backends talk to the **same** Supabase Postgres / KV / Storage, so the
-fallback stays useful even if the Edge Functions runtime is down.
+The frontend calls same-origin `/api` first and automatically fails over to
+`VITE_FALLBACK_API_URL` (the share-crops-marketplace deployment) on a network
+error or 5xx (see `fetchWithFailover` in `src/lib/api.ts`). Both Vercel
+projects talk to the same Supabase Postgres / Storage data.
+
+Supabase Edge is intentionally **not** in browser failover. Its entrypoint
+returns a disabled response until the Deno copy can be safely kept in sync with
+`server/app.ts` security fixes.
 
 ```
-            ┌──────────── Supabase (primary) ───────────┐
- frontend ──┤  Edge Function: make-server-dd877831       ├── Supabase DB
-   │  └─ on 5xx/network error, fail over ↓               │   (Postgres + KV
-   │        ┌──────────── Vercel (fallback) ─────────────┤    + Storage)
-   └────────┤  /api  →  same Hono app (Node)             ├───┘
-            └────────────────────────────────────────────┘
+ frontend ──┬─ same-origin Vercel /api ───────────────┐
+            └─ on 5xx/network error, fail over ↓      ├── Supabase DB/Storage
+               marketplace Vercel /api ──────────────┘
 ```
 
 ---
@@ -50,7 +50,6 @@ fallback stays useful even if the Edge Functions runtime is down.
 | `CORS_ORIGINS` | `https://share-crops-v2.vercel.app,https://share-crops-marketplace.vercel.app,https://sharecropsmarketplace.netlify.app,http://localhost:5173` | no |
 | `DEFAULT_ORIGIN` | `https://share-crops-v2.vercel.app` (primary) | no |
 | `VITE_FALLBACK_API_URL` | `https://share-crops-marketplace.vercel.app/api/make-server-dd877831` (backup API) | no |
-| `VITE_SUPABASE_ANON_KEY` | Supabase project **anon** key (Dashboard → API) — browser Edge failover | no |
 | `VITE_FIREBASE_AUTH_DOMAIN` | `share-crops-app.firebaseapp.com` — **not** your Vercel URL | no |
 | `ANTHROPIC_API_KEY` | **required for AI listing drafts** — Anthropic API key | **yes** |
 | `ANTHROPIC_DRAFT_MODEL` | optional — defaults to `claude-haiku-4-5-20251001` | no |
@@ -62,32 +61,22 @@ fallback stays useful even if the Edge Functions runtime is down.
 
 ---
 
-## 2. Deploy the Supabase Edge Function (primary)
+## 2. Supabase Edge Function (disabled)
 
-> Your original `shareCropsApp` already has this deployed and live. These steps
-> let you (re)deploy the identical app from this repo if you want one source.
+The Supabase Edge function entrypoint is deployed only as a closed/disabled
+endpoint. Do not use it as a browser API fallback until its Deno implementation
+is brought back in sync with `server/app.ts`.
 
 ```bash
 cd share-crops-v2
 supabase login                       # one-time
 supabase link --project-ref xwjvtpzpufhuybylnwzx
 
-# Set the function secrets (skip SKIP_INIT here — primary should seed):
-supabase secrets set \
-  SUPABASE_SERVICE_ROLE_KEY=... \
-  ADMIN_EMAIL=... \
-  ANTHROPIC_API_KEY=... \
-  APP_ID=dd877831 \
-  STORAGE_BUCKET_NAME=make-dd877831-sharecrops \
-  KV_TABLE_NAME=kv_store_dd877831 \
-  CORS_ORIGINS="https://share-crops-v2.vercel.app,https://share-crops-marketplace.vercel.app,https://sharecropsmarketplace.netlify.app,http://localhost:5173,http://localhost:4321" \
-  DEFAULT_ORIGIN="https://share-crops-v2.vercel.app"
-
 supabase functions deploy make-server-dd877831
 ```
 
-`SUPABASE_URL` / `SUPABASE_ANON_KEY` are injected by the Supabase runtime
-automatically. The `deno.json` import map resolves `hono` / `@supabase/supabase-js`.
+`GET /health` returns JSON with `edgeApiDisabled: true`; all other methods return
+503. Production API traffic belongs on Vercel.
 
 ---
 
@@ -177,7 +166,6 @@ second route serves the SPA for all non-`/api` paths.
 
 ```bash
 # Health check both backends:
-curl https://xwjvtpzpufhuybylnwzx.supabase.co/functions/v1/make-server-dd877831/health
 curl https://share-crops-v2.vercel.app/api/make-server-dd877831/health
 curl https://share-crops-marketplace.vercel.app/api/make-server-dd877831/health
 ```
@@ -208,11 +196,10 @@ https://share-crops-v2.vercel.app/api/make-server-dd877831/images/<key>
 `GET /images/:key` streams the blob with long-lived cache headers. Nothing in
 the DB expires.
 
-> **Where this applies:** Production uploads hit same-origin `/api` on Vercel
+> **Where this applies:** Production uploads hit `/api` on Vercel
 > (`src/lib/api.ts`), so Blobs vars belong on the **Vercel** project (both
 > `share-crops-v2` and `share-crops-marketplace` if you use the fallback for
-> uploads). The Supabase Edge Function primary copy still uses Supabase signed
-> URLs — Deno does not run `@netlify/blobs` today.
+> uploads). Supabase Edge is disabled and is not an upload runtime.
 
 ### Enable on Vercel
 
