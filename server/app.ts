@@ -911,7 +911,19 @@ app.post("/make-server-dd877831/offers/:id/accept", async (c) => {
       return c.json({ error: "Only the seller can accept offers" }, 403);
     }
 
+    if (offer.status !== 'pending') {
+      return c.json({ error: "Only pending offers can be accepted" }, 400);
+    }
+
+    const listing = await db.getListing(offer.listingId);
+    if (!listing || listing.status !== 'active' || isListingExpired(listing)) {
+      return c.json({ error: "This listing is no longer accepting offers" }, 400);
+    }
+
     const updated = await db.setOfferStatus(offerId, 'accepted');
+    if (!updated) {
+      return c.json({ error: "Only pending offers can be accepted" }, 400);
+    }
     return c.json({ success: true, offer: updated });
   } catch (error) {
     console.error("Accept offer error:", error);
@@ -935,7 +947,14 @@ app.post("/make-server-dd877831/offers/:id/decline", async (c) => {
       return c.json({ error: "Only the seller can decline offers" }, 403);
     }
 
+    if (offer.status !== 'pending') {
+      return c.json({ error: "Only pending offers can be declined" }, 400);
+    }
+
     const updated = await db.setOfferStatus(offerId, 'declined');
+    if (!updated) {
+      return c.json({ error: "Only pending offers can be declined" }, 400);
+    }
     return c.json({ success: true, offer: updated });
   } catch (error) {
     console.error("Decline offer error:", error);
