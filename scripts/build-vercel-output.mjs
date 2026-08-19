@@ -46,6 +46,11 @@ cpSync(DIST, STATIC, { recursive: true });
 cpSync(API_BUNDLE, join(FUNC_DIR, 'index.js'));
 
 writeFileSync(
+  join(FUNC_DIR, 'package.json'),
+  `${JSON.stringify({ type: 'module' }, null, 2)}\n`,
+);
+
+writeFileSync(
   join(FUNC_DIR, '.vc-config.json'),
   `${JSON.stringify(
     {
