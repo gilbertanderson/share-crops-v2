@@ -67,6 +67,10 @@ export function isVercelAppHost(hostname = window.location.hostname): boolean {
   );
 }
 
+function isCanonicalVercelAppHost(hostname: string): boolean {
+  return hostname === PRIMARY_HOSTNAME || hostname === VERCEL_FALLBACK_HOSTNAME;
+}
+
 export function isNetlifyFallbackHost(hostname = window.location.hostname): boolean {
   return hostname === NETLIFY_FALLBACK_HOSTNAME || hostname.endsWith('.netlify.app');
 }
@@ -92,6 +96,8 @@ function withSupabaseEdgeFailover(bases: string[]): string[] {
  * API bases to try, in order.
  * - PRIMARY (v2): same-origin /api, marketplace Vercel API, then Supabase Edge.
  * - VERCEL_FALLBACK (marketplace): same-origin /api, then Supabase Edge.
+ * - VERCEL PREVIEWS: same-origin only, so broken preview APIs fail visibly
+ *   instead of writing through production fallbacks.
  * - NETLIFY_FALLBACK / FIREBASE_HOSTING: remote v2 API, marketplace API, then Supabase Edge.
  */
 export function resolveApiBasesForHost(
@@ -121,11 +127,12 @@ export function resolveApiBasesForHost(
   }
 
   const bases = [SAME_ORIGIN_API_BASE];
+  if (!isCanonicalVercelAppHost(hostname)) {
+    return bases;
+  }
+
   const useMarketplaceFallback =
-    (hostname === PRIMARY_HOSTNAME ||
-      (hostname.endsWith('.vercel.app') &&
-        hostname.startsWith('share-crops-v2') &&
-        hostname !== VERCEL_FALLBACK_HOSTNAME)) &&
+    hostname === PRIMARY_HOSTNAME &&
     vercelFallbackApi &&
     vercelFallbackApi !== SAME_ORIGIN_API_BASE;
   if (useMarketplaceFallback) {
