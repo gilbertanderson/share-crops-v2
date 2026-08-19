@@ -50,13 +50,9 @@ describe('resolveApiBasesForHost', () => {
     ]);
   });
 
-  it('on v2 preview deploys also tries marketplace Vercel before Supabase Edge', () => {
+  it('on v2 preview deploys uses same-origin only to avoid production writes', () => {
     const bases = resolveApiBasesForHost('share-crops-v2-git-main-user.vercel.app');
-    assert.deepEqual(bases, [
-      SAME_ORIGIN_API_BASE,
-      VERCEL_FALLBACK_API_BASE,
-      SUPABASE_EDGE_API_BASE,
-    ]);
+    assert.deepEqual(bases, [SAME_ORIGIN_API_BASE]);
   });
 
   it('dedupes when fallback matches an earlier base', () => {
