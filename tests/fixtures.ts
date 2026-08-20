@@ -88,6 +88,12 @@ function json(route: Route, body: unknown, status = 200) {
   return route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(body) });
 }
 
+type MockBackendOptions = {
+  primaryFails?: boolean;
+  primaryStatus?: number;
+  primaryReturnsHtml?: boolean;
+};
+
 /** Tiny PNG returned by mocked GET /images/:key (stable URL uploads). */
 const MOCK_IMAGE_BODY = Buffer.from(
   'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==',
@@ -149,21 +155,37 @@ async function dispatch(route: Route) {
 
 /**
  * Install backend mocks. By default the primary (Supabase) host serves data.
- * With { primaryFails: true } the primary returns 500 so the app must fail
- * over to the Vercel fallback host (which always serves data here).
+ * Primary override options make the app fail over to the Vercel fallback host
+ * (which always serves data here).
  */
-export async function mockBackend(page: Page, opts: { primaryFails?: boolean } = {}) {
+export async function mockBackend(page: Page, opts: MockBackendOptions = {}) {
   await page.route('**/functions/v1/make-server-dd877831/**', async (route) => {
-    if (opts.primaryFails) return json(route, { error: 'primary down' }, 500);
+    if (await fulfillPrimaryOverride(route, opts)) return;
     return dispatch(route);
   });
   await page.route('**/fallback.test/api/make-server-dd877831/**', dispatch);
   await page.route('**/api/make-server-dd877831/**', async (route) => {
     // Same pattern matches fallback.test — defer to that handler.
     if (route.request().url().includes('fallback.test')) return route.fallback();
-    if (opts.primaryFails) return json(route, { error: 'primary down' }, 500);
+    if (await fulfillPrimaryOverride(route, opts)) return;
     return dispatch(route);
   });
+}
+
+async function fulfillPrimaryOverride(route: Route, opts: MockBackendOptions): Promise<boolean> {
+  if (opts.primaryReturnsHtml) {
+    await route.fulfill({
+      status: 200,
+      contentType: 'text/html',
+      body: '<!doctype html><html><body>SPA shell</body></html>',
+    });
+    return true;
+  }
+
+  const status = opts.primaryStatus ?? (opts.primaryFails ? 500 : undefined);
+  if (status == null) return false;
+  await json(route, { error: 'primary unavailable' }, status);
+  return true;
 }
 
 /**
@@ -172,7 +194,7 @@ export async function mockBackend(page: Page, opts: { primaryFails?: boolean } =
  */
 export async function setupAuthenticatedSession(
   page: Page,
-  opts: { primaryFails?: boolean } = {},
+  opts: MockBackendOptions = {},
 ): Promise<string> {
   await mockBackend(page, opts);
   return signInAsVerifiedUser(page);
@@ -184,7 +206,7 @@ export async function setupAuthenticatedSession(
  */
 export async function setupGoogleAuthenticatedSession(
   page: Page,
-  opts: { primaryFails?: boolean } = {},
+  opts: MockBackendOptions = {},
 ): Promise<string> {
   await mockBackend(page, opts);
   return signInWithGoogleViaEmulator(page);
