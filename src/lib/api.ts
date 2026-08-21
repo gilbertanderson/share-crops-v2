@@ -7,9 +7,23 @@ function isHtmlResponse(response: Response): boolean {
   return contentType.includes('text/html');
 }
 
-function shouldRetryOnAnotherBase(response: Response, isLast: boolean): boolean {
-  if (isHtmlResponse(response)) return !isLast;
-  return !isLast && (response.status === 401 || response.status === 404 || response.status >= 500);
+// Only these methods are safe to replay after an ambiguous 5xx/network failure;
+// mutating requests may already have reached the first backend.
+const REPLAY_SAFE_METHODS = new Set(['GET', 'HEAD', 'OPTIONS']);
+
+function requestMethod(options: RequestInit): string {
+  return (options.method || 'GET').toUpperCase();
+}
+
+function canReplayRequest(options: RequestInit): boolean {
+  return REPLAY_SAFE_METHODS.has(requestMethod(options));
+}
+
+function shouldRetryOnAnotherBase(response: Response, options: RequestInit, isLast: boolean): boolean {
+  if (isLast) return false;
+  if (response.status === 401 || response.status === 404) return true;
+  if (isHtmlResponse(response)) return response.status < 500 || canReplayRequest(options);
+  return response.status >= 500 && canReplayRequest(options);
 }
 
 function headersForBase(base: string, options: RequestInit): Headers {
@@ -35,7 +49,7 @@ async function fetchWithFailover(endpoint: string, options: RequestInit): Promis
         ...options,
         headers: headersForBase(base, options),
       });
-      if (shouldRetryOnAnotherBase(response, isLast)) {
+      if (shouldRetryOnAnotherBase(response, options, isLast)) {
         lastResponse = response;
         continue;
       }
@@ -47,7 +61,7 @@ async function fetchWithFailover(endpoint: string, options: RequestInit): Promis
       }
       return response;
     } catch (err) {
-      if (!isLast) continue;
+      if (!isLast && canReplayRequest(options)) continue;
       throw err;
     }
   }
