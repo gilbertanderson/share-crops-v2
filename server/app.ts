@@ -55,13 +55,14 @@ const CORS_ORIGINS = (() => {
 
 // Allow an origin if it's explicitly configured (CORS_ORIGINS), OR it's
 // localhost on any port (local dev), OR it's any Vercel preview/production URL.
+// Netlify branch/deploy-preview hosts are intentionally not wildcarded: they
+// should not be able to mutate production data through the production API.
 // Returning the origin string tells Hono to echo it in Access-Control-Allow-Origin.
 const isAllowedOrigin = (origin: string | undefined | null): string | null => {
   if (!origin) return null;
   if (CORS_ORIGINS.includes(origin)) return origin;
   if (/^http:\/\/localhost(:\d+)?$/.test(origin)) return origin;
   if (/^https:\/\/[a-z0-9-]+\.vercel\.app$/.test(origin)) return origin;
-  if (/^https:\/\/[a-z0-9-]+\.netlify\.app$/.test(origin)) return origin;
   return null;
 };
 
@@ -799,6 +800,10 @@ app.delete("/make-server-dd877831/listings/:id", async (c) => {
       return c.json({ error: "Only the seller can delete this listing" }, 403);
     }
 
+    if ((await db.getProtectedOfferCountForListing(id)) > 0) {
+      return c.json({ error: "Listings with active or completed offers cannot be deleted" }, 409);
+    }
+
     await deleteListingRecords(listing);
     return c.json({ success: true });
   } catch (error) {
@@ -989,6 +994,10 @@ app.delete("/make-server-dd877831/offers/:id", async (c) => {
 
     if (offer.buyerId !== user.id) {
       return c.json({ error: "Only the buyer can delete their offer" }, 403);
+    }
+
+    if (offer.status !== 'pending') {
+      return c.json({ error: "Only pending offers can be deleted" }, 400);
     }
 
     await db.deleteOffer(offerId);
@@ -1624,6 +1633,9 @@ app.post("/make-server-dd877831/push/register", async (c) => {
     await db.savePushToken(user.id, token);
     return c.json({ success: true });
   } catch (error) {
+    if (error instanceof db.PushTokenOwnershipError) {
+      return c.json({ error: "Push token is already registered to another user" }, 409);
+    }
     console.error("Register push token error:", error);
     return c.json({ error: "Failed to register push token" }, 500);
   }

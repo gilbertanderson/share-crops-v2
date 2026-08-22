@@ -20,12 +20,19 @@ const ENV = {
   FIREBASE_PROJECT_ID: 'share-crops-app',
 };
 
-function runHandler(url) {
+function runHandler(url, init = {}) {
   const script = `
-    import { GET } from './api/index.js';
-    const res = await GET(new Request(${JSON.stringify(url)}));
+    import { GET, OPTIONS } from './api/index.js';
+    const init = ${JSON.stringify(init)};
+    const method = init.method || 'GET';
+    const handler = method === 'OPTIONS' ? OPTIONS : GET;
+    const res = await handler(new Request(${JSON.stringify(url)}, init));
     const body = await res.text();
-    console.log(JSON.stringify({ status: res.status, body }));
+    console.log(JSON.stringify({
+      status: res.status,
+      body,
+      allowOrigin: res.headers.get('access-control-allow-origin'),
+    }));
   `;
   const result = spawnSync(process.execPath, ['--input-type=module', '-e', script], {
     cwd: ROOT,
@@ -62,5 +69,16 @@ describe('Vercel API path restoration', () => {
   it('returns 404 when rewrite strips path with no restoration hint', () => {
     const out = runHandler('https://share-crops-v2.vercel.app/api');
     assert.equal(out.status, 404);
+  });
+
+  it('does not allow Netlify deploy-preview origins through production API CORS', () => {
+    const out = runHandler('https://share-crops-v2.vercel.app/api/make-server-dd877831/health', {
+      method: 'OPTIONS',
+      headers: {
+        Origin: 'https://deploy-preview-99--sharecropsmarketplace.netlify.app',
+        'Access-Control-Request-Method': 'POST',
+      },
+    });
+    assert.equal(out.allowOrigin, null);
   });
 });

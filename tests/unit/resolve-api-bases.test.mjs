@@ -32,6 +32,11 @@ describe('resolveApiBasesForHost', () => {
     ]);
   });
 
+  it('on Netlify preview deploys does not route CRUD to production APIs', () => {
+    const bases = resolveApiBasesForHost('deploy-preview-99--sharecropsmarketplace.netlify.app');
+    assert.deepEqual(bases, [SAME_ORIGIN_API_BASE]);
+  });
+
   it('on Firebase Hosting tries remote Vercel APIs then Supabase Edge', () => {
     const bases = resolveApiBasesForHost('share-crops-app.web.app');
     assert.deepEqual(bases, [
