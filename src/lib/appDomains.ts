@@ -68,7 +68,11 @@ export function isVercelAppHost(hostname = window.location.hostname): boolean {
 }
 
 export function isNetlifyFallbackHost(hostname = window.location.hostname): boolean {
-  return hostname === NETLIFY_FALLBACK_HOSTNAME || hostname.endsWith('.netlify.app');
+  return hostname === NETLIFY_FALLBACK_HOSTNAME;
+}
+
+export function isNetlifyPreviewHost(hostname = window.location.hostname): boolean {
+  return hostname.endsWith('.netlify.app') && hostname !== NETLIFY_FALLBACK_HOSTNAME;
 }
 
 export function isFirebaseHostingHost(hostname = window.location.hostname): boolean {
@@ -106,6 +110,10 @@ export function resolveApiBasesForHost(
       bases.push(vercelFallbackApi);
     }
     return withSupabaseEdgeFailover(bases);
+  }
+
+  if (isNetlifyPreviewHost(hostname)) {
+    return [SAME_ORIGIN_API_BASE];
   }
 
   if (isNetlifyFallbackHost(hostname) || isFirebaseHostingHost(hostname)) {

@@ -294,6 +294,16 @@ export const getOffer = async (id: string) => {
   return offerFromRow(data);
 };
 
+export const getProtectedOfferCountForListing = async (listingId: string): Promise<number> => {
+  const { count, error } = await db()
+    .from("offers")
+    .select("id", { count: "exact", head: true })
+    .eq("listing_id", listingId)
+    .in("status", ["pending", "accepted", "completed"]);
+  if (error) throw new Error(error.message);
+  return count ?? 0;
+};
+
 // accept / decline — sets status and the matching timestamp column.
 export const setOfferStatus = async (id: string, status: "accepted" | "declined") => {
   const stamp = status === "accepted" ? "accepted_at" : "declined_at";
@@ -787,13 +797,38 @@ export const getAdminUserIds = async (): Promise<string[]> => {
 };
 
 // ── push tokens (FCM web push device registration) ───────────────────────────
-// Upsert by token so re-registering the same device is idempotent; ON DELETE
-// CASCADE drops a user's tokens with their profile.
+// Tokens are device credentials. Re-registering the same token for the same user
+// is idempotent, but a different user must not be able to take ownership of it.
+export class PushTokenOwnershipError extends Error {}
+
 export const savePushToken = async (userId: string, token: string) => {
-  const { error } = await db()
+  const { data: existing, error: readError } = await db()
     .from("push_tokens")
-    .upsert({ token, user_id: userId }, { onConflict: "token" });
-  if (error) throw new Error(error.message);
+    .select("user_id")
+    .eq("token", token)
+    .maybeSingle();
+  if (readError) throw new Error(readError.message);
+  if (existing) {
+    if (existing.user_id !== userId) {
+      throw new PushTokenOwnershipError("Push token is already registered to another user");
+    }
+    return;
+  }
+
+  const { error } = await db().from("push_tokens").insert({ token, user_id: userId });
+  if (!error) return;
+  if (error.code !== "23505") throw new Error(error.message);
+
+  // Race-safe duplicate handling: a concurrent insert is OK only for this user.
+  const { data: owner, error: ownerError } = await db()
+    .from("push_tokens")
+    .select("user_id")
+    .eq("token", token)
+    .maybeSingle();
+  if (ownerError) throw new Error(ownerError.message);
+  if (owner?.user_id !== userId) {
+    throw new PushTokenOwnershipError("Push token is already registered to another user");
+  }
 };
 
 export const getPushTokensForUser = async (userId: string): Promise<string[]> => {
