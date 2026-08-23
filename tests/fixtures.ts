@@ -6,6 +6,7 @@ export const ME = {
   id: 'me', email: 'you@test.dev', name: 'Test Grower', bio: 'Backyard gardener.',
   rating: 4.6, ratingCount: 18, role: 'general', createdAt: '2026-01-01T00:00:00Z',
 };
+type MockUser = typeof ME;
 
 export const COMMUNITY = {
   id: 'c1', name: 'Eastside Growers', zipCode: '98112', createdBy: 'me',
@@ -102,13 +103,24 @@ function stableImageUrl(route: Route, key: string): string {
 
 // Dispatches a mocked backend response based on the path suffix after the
 // API prefix. Used for both the primary and fallback hosts.
-async function dispatch(route: Route) {
+type MockBackendOptions = {
+  primaryFails?: boolean;
+  me?: MockUser | (() => MockUser);
+};
+
+function resolveMockUser(opts: MockBackendOptions): MockUser {
+  return typeof opts.me === 'function' ? opts.me() : opts.me ?? ME;
+}
+
+async function dispatch(route: Route, opts: MockBackendOptions = {}) {
   const url = new URL(route.request().url());
   const marker = '/make-server-dd877831';
   const markerIdx = url.pathname.indexOf(marker);
   const path = markerIdx >= 0 ? url.pathname.slice(markerIdx + marker.length) : '';
 
-  if (path === '/auth/me') return json(route, { user: ME });
+  const me = resolveMockUser(opts);
+
+  if (path === '/auth/me') return json(route, { user: me });
   if (path === '/communities/mine') return json(route, { communities: [COMMUNITY], activeCommunityId: COMMUNITY.id });
   if (path.startsWith('/communities/search')) return json(route, { communities: [COMMUNITY] });
   if (path.includes('/members/preview')) return json(route, { members: MEMBERS });
@@ -143,7 +155,7 @@ async function dispatch(route: Route) {
   if (path.startsWith('/listings') && route.request().method() === 'POST') {
     return json(route, { listing: LISTINGS[0] });
   }
-  if (path.startsWith('/profile/')) return json(route, { profile: ME });
+  if (path.startsWith('/profile/')) return json(route, { profile: me });
   return json(route, {});
 }
 
@@ -152,17 +164,17 @@ async function dispatch(route: Route) {
  * With { primaryFails: true } the primary returns 500 so the app must fail
  * over to the Vercel fallback host (which always serves data here).
  */
-export async function mockBackend(page: Page, opts: { primaryFails?: boolean } = {}) {
+export async function mockBackend(page: Page, opts: MockBackendOptions = {}) {
   await page.route('**/functions/v1/make-server-dd877831/**', async (route) => {
     if (opts.primaryFails) return json(route, { error: 'primary down' }, 500);
-    return dispatch(route);
+    return dispatch(route, opts);
   });
-  await page.route('**/fallback.test/api/make-server-dd877831/**', dispatch);
+  await page.route('**/fallback.test/api/make-server-dd877831/**', (route) => dispatch(route, opts));
   await page.route('**/api/make-server-dd877831/**', async (route) => {
     // Same pattern matches fallback.test — defer to that handler.
     if (route.request().url().includes('fallback.test')) return route.fallback();
     if (opts.primaryFails) return json(route, { error: 'primary down' }, 500);
-    return dispatch(route);
+    return dispatch(route, opts);
   });
 }
 
