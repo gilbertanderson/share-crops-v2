@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import type { User } from 'firebase/auth';
+import { useQueryClient } from '@tanstack/react-query';
 import { auth } from '@/lib/firebase';
 import { API, AuthManager, setUnauthorizedHandler } from '@/lib/api';
 import { profileLoadError } from '@/lib/authErrors';
@@ -44,6 +45,7 @@ const UNAUTH: AuthState = {
 const AuthContext = createContext<AuthContextValue | null>(null);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
+  const queryClient = useQueryClient();
   const [state, setState] = useState<AuthState>({ ...UNAUTH, loading: true });
 
   // The current Firebase user, kept in a ref so refreshAuth() can re-resolve the
@@ -52,15 +54,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   // While resolving /auth/me during sign-in, don't treat a 401 as a stale session.
   const isBootstrapping = useRef(false);
 
+  const clearCachedSession = useCallback(() => {
+    AuthManager.clearToken();
+    queryClient.clear();
+  }, [queryClient]);
+
   // Resolve app-level auth state for a given Firebase user: signed out →
   // unauthenticated; unverified email → held for verification; verified → load
   // the profile + communities from the backend (token attached by API.request).
   const applyUser = useCallback(async (user: User | null) => {
     if (!user) {
+      clearCachedSession();
       setState((prev) => ({ ...UNAUTH, authError: prev.authError }));
       return;
     }
     if (!user.emailVerified) {
+      clearCachedSession();
       setState({ ...UNAUTH, needsEmailVerification: true, authError: null });
       return;
     }
@@ -95,7 +104,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     } finally {
       isBootstrapping.current = false;
     }
-  }, []);
+  }, [clearCachedSession]);
 
   const refreshAuth = useCallback(async () => {
     // Use Firebase's current user — the ref can lag behind signInWithPopup by a tick.
@@ -107,10 +116,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const logout = useCallback(() => {
+    clearCachedSession();
     // Signing out fires onAuthChange(null), which resets state via applyUser.
-    firebaseLogout();
-    AuthManager.clearToken(); // clear cached profile + community selection
-  }, []);
+    void firebaseLogout();
+  }, [clearCachedSession]);
 
   // Complete a pending Google redirect sign-in as early as possible.
   useEffect(() => {
