@@ -1,6 +1,6 @@
 import { test, expect } from '@playwright/test';
-import { mockBackend } from './fixtures';
-import { signInWithGoogleViaEmulator } from './firebase-emulator';
+import { ME, mockBackend } from './fixtures';
+import { signInAsVerifiedUser, signInWithGoogleViaEmulator, testEmail } from './firebase-emulator';
 
 // Firebase auth flow. Unauthenticated users are routed to /login; signup is
 // gated by the client password policy and, once that passes, lands on the
@@ -61,6 +61,27 @@ test.describe('Firebase auth', () => {
     expect(email).toMatch(/@/);
     await expect(page.locator('.auth-error')).toHaveCount(0);
     await expect(page.getByRole('heading', { name: 'Marketplace' })).toBeVisible();
+  });
+
+  test('logout clears cached profile before another user signs in', async ({ page }) => {
+    const alice = { ...ME, id: 'alice', email: 'alice@test.dev', name: 'Alice Grower' };
+    const bob = { ...ME, id: 'bob', email: 'bob@test.dev', name: 'Bob Grower' };
+    let activeProfile = alice;
+
+    await mockBackend(page, { me: () => activeProfile });
+
+    await signInAsVerifiedUser(page, testEmail('cache-alice'));
+    await page.goto('/profile');
+    await expect(page.locator('.profile-hero .name')).toHaveText('Alice Grower');
+
+    await page.getByRole('button', { name: 'Log out' }).click();
+    await expect(page).toHaveURL(/\/login$/);
+
+    activeProfile = bob;
+    await signInAsVerifiedUser(page, testEmail('cache-bob'));
+    await page.goto('/profile');
+    await expect(page.locator('.profile-hero .name')).toHaveText('Bob Grower');
+    await expect(page.getByText('Alice Grower')).toHaveCount(0);
   });
 
   test('shows Continue with Google on the login screen', async ({ page }) => {

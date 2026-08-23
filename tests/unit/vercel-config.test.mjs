@@ -14,4 +14,16 @@ describe('vercel.json', () => {
     assert.match(vercel.buildCommand, /vite build/);
     assert.doesNotMatch(vercel.buildCommand, /build-api\.mjs/);
   });
+
+  it('decodes Firebase *_B64 env before generating workers or building the SPA', () => {
+    const decode = vercel.buildCommand.indexOf('decode-firebase-env.mjs');
+    const generateSw = vercel.buildCommand.indexOf('generate-sw.mjs');
+    const checkEnv = vercel.buildCommand.indexOf('check-vercel-env.mjs');
+    const viteBuild = vercel.buildCommand.indexOf('vite build');
+
+    assert.ok(decode >= 0);
+    assert.ok(generateSw > decode);
+    assert.ok(checkEnv > decode);
+    assert.ok(viteBuild > decode);
+  });
 });

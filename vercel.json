@@ -1,4 +1,4 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "buildCommand": "node scripts/generate-sw.mjs && node scripts/check-vercel-env.mjs && vite build && node scripts/build-vercel-output.mjs"
+  "buildCommand": "node scripts/decode-firebase-env.mjs && node scripts/generate-sw.mjs && node scripts/check-vercel-env.mjs && vite build && node scripts/build-vercel-output.mjs"
 }
