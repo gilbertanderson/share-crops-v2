@@ -20,10 +20,10 @@ const ENV = {
   FIREBASE_PROJECT_ID: 'share-crops-app',
 };
 
-function runHandler(url) {
+function runHandler(url, init = {}) {
   const script = `
     import { GET } from './api/index.js';
-    const res = await GET(new Request(${JSON.stringify(url)}));
+    const res = await GET(new Request(${JSON.stringify(url)}, ${JSON.stringify(init)}));
     const body = await res.text();
     console.log(JSON.stringify({ status: res.status, body }));
   `;
@@ -58,6 +58,16 @@ describe('Vercel API path restoration', () => {
     assert.equal(out.status, 200);
     assert.match(out.body, /"status":"ok"/);
   });
+
+  for (const header of ['x-vercel-invoke-path', 'x-matched-path', 'x-forwarded-uri']) {
+    it(`restores subpath from ${header} when Vercel invokes /api/index`, () => {
+      const out = runHandler('https://share-crops-v2.vercel.app/api/index', {
+        headers: { [header]: '/api/make-server-dd877831/health' },
+      });
+      assert.equal(out.status, 200);
+      assert.match(out.body, /"status":"ok"/);
+    });
+  }
 
   it('returns 404 when rewrite strips path with no restoration hint', () => {
     const out = runHandler('https://share-crops-v2.vercel.app/api');
