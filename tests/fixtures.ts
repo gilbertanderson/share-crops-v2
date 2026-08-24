@@ -147,21 +147,44 @@ async function dispatch(route: Route) {
   return json(route, {});
 }
 
+type PrimaryFailureMode = '5xx' | '404' | 'html';
+
+function primaryFailureMode(opts: { primaryFails?: boolean; primaryFailureMode?: PrimaryFailureMode }): PrimaryFailureMode | null {
+  if (opts.primaryFailureMode) return opts.primaryFailureMode;
+  return opts.primaryFails ? '5xx' : null;
+}
+
+function primaryFailure(route: Route, mode: PrimaryFailureMode) {
+  if (mode === '404') return json(route, { error: 'primary route missing' }, 404);
+  if (mode === 'html') {
+    return route.fulfill({
+      status: 200,
+      contentType: 'text/html',
+      body: '<!doctype html><title>Fallback app shell</title>',
+    });
+  }
+  return json(route, { error: 'primary down' }, 500);
+}
+
 /**
- * Install backend mocks. By default the primary (Supabase) host serves data.
- * With { primaryFails: true } the primary returns 500 so the app must fail
- * over to the Vercel fallback host (which always serves data here).
+ * Install backend mocks. By default the primary (same-origin/Supabase) host
+ * serves data. With a primary failure mode, the primary simulates an outage or
+ * undeployed API route so the app must fail over to the Vercel fallback host.
  */
-export async function mockBackend(page: Page, opts: { primaryFails?: boolean } = {}) {
+export async function mockBackend(
+  page: Page,
+  opts: { primaryFails?: boolean; primaryFailureMode?: PrimaryFailureMode } = {},
+) {
+  const failureMode = primaryFailureMode(opts);
   await page.route('**/functions/v1/make-server-dd877831/**', async (route) => {
-    if (opts.primaryFails) return json(route, { error: 'primary down' }, 500);
+    if (failureMode) return primaryFailure(route, failureMode);
     return dispatch(route);
   });
   await page.route('**/fallback.test/api/make-server-dd877831/**', dispatch);
   await page.route('**/api/make-server-dd877831/**', async (route) => {
     // Same pattern matches fallback.test — defer to that handler.
     if (route.request().url().includes('fallback.test')) return route.fallback();
-    if (opts.primaryFails) return json(route, { error: 'primary down' }, 500);
+    if (failureMode) return primaryFailure(route, failureMode);
     return dispatch(route);
   });
 }
@@ -172,7 +195,7 @@ export async function mockBackend(page: Page, opts: { primaryFails?: boolean } =
  */
 export async function setupAuthenticatedSession(
   page: Page,
-  opts: { primaryFails?: boolean } = {},
+  opts: { primaryFails?: boolean; primaryFailureMode?: PrimaryFailureMode } = {},
 ): Promise<string> {
   await mockBackend(page, opts);
   return signInAsVerifiedUser(page);
@@ -184,7 +207,7 @@ export async function setupAuthenticatedSession(
  */
 export async function setupGoogleAuthenticatedSession(
   page: Page,
-  opts: { primaryFails?: boolean } = {},
+  opts: { primaryFails?: boolean; primaryFailureMode?: PrimaryFailureMode } = {},
 ): Promise<string> {
   await mockBackend(page, opts);
   return signInWithGoogleViaEmulator(page);
