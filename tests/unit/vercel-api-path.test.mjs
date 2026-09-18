@@ -20,10 +20,10 @@ const ENV = {
   FIREBASE_PROJECT_ID: 'share-crops-app',
 };
 
-function runHandler(url) {
+function runHandler(url, init = {}) {
   const script = `
     import { GET } from './api/index.js';
-    const res = await GET(new Request(${JSON.stringify(url)}));
+    const res = await GET(new Request(${JSON.stringify(url)}, ${JSON.stringify(init)}));
     const body = await res.text();
     console.log(JSON.stringify({ status: res.status, body }));
   `;
@@ -55,6 +55,22 @@ describe('Vercel API path restoration', () => {
 
   it('restores subpath from __path rewrite query param', () => {
     const out = runHandler('https://share-crops-v2.vercel.app/api/index?__path=make-server-dd877831/health');
+    assert.equal(out.status, 200);
+    assert.match(out.body, /"status":"ok"/);
+  });
+
+  it('restores subpath from Vercel invoke path header', () => {
+    const out = runHandler('https://share-crops-v2.vercel.app/api/index', {
+      headers: { 'x-vercel-invoke-path': '/api/make-server-dd877831/health' },
+    });
+    assert.equal(out.status, 200);
+    assert.match(out.body, /"status":"ok"/);
+  });
+
+  it('restores subpath from matched path header when invoke path is absent', () => {
+    const out = runHandler('https://share-crops-v2.vercel.app/api', {
+      headers: { 'x-matched-path': '/api/make-server-dd877831/health' },
+    });
     assert.equal(out.status, 200);
     assert.match(out.body, /"status":"ok"/);
   });
