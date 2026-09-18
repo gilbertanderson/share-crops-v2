@@ -67,7 +67,8 @@ function resolveFirebaseEnv() {
     ...loadDotEnv(join(ROOT, '.env.production.local')),
     ...loadDotEnv(join(ROOT, '.env.local')),
   };
-  const merged = { ...DEV_DEFAULTS, ...fileEnv };
+  const defaults = isProductionBuild() ? {} : DEV_DEFAULTS;
+  const merged = { ...defaults, ...fileEnv };
   for (const key of FIREBASE_KEYS) {
     if (process.env[key]?.trim()) merged[key] = process.env[key].trim();
   }
