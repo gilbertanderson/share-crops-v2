@@ -250,6 +250,8 @@ const isListingExpired = (listing: any): boolean => {
   return Date.now() >= expiresAt;
 };
 
+const publicProfile = (profile: any) => db.publicProfileFromProfile(profile);
+
 const deleteListingRecords = async (listing: any) => {
   if (!listing?.id) return;
   // One row now (offers cascade via FK), instead of 3 hand-synced KV copies +
@@ -973,7 +975,7 @@ app.get("/make-server-dd877831/listings/:id", async (c) => {
     let seller = null;
     if (listing.sellerId) {
       try {
-        seller = await db.getProfile(listing.sellerId);
+        seller = publicProfile(await db.getProfile(listing.sellerId));
       } catch (sellerError) {
         console.error("Get listing seller error:", sellerError);
       }
@@ -1533,7 +1535,7 @@ app.get("/make-server-dd877831/profile/:userId", async (c) => {
       return c.json({ error: "Profile not found" }, 404);
     }
 
-    return c.json({ profile });
+    return c.json({ profile: publicProfile(profile) });
   } catch (error) {
     console.error("Get profile error:", error);
     return c.json({ error: "Failed to get profile" }, 500);
