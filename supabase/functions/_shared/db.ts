@@ -71,6 +71,17 @@ export const profileFromRow = (r: any) => (r ? {
   createdAt: r.created_at,
 } : null);
 
+export const publicProfileFromProfile = (profile: any) => (profile ? {
+  id: profile.id,
+  name: profile.name ?? "",
+  bio: profile.bio ?? "",
+  socialUrl: profile.socialUrl ?? "",
+  profilePhotoUrl: profile.profilePhotoUrl ?? "",
+  rating: Number(profile.rating ?? 0),
+  ratingCount: Number(profile.ratingCount ?? 0),
+  createdAt: profile.createdAt,
+} : null);
+
 // ── listings ─────────────────────────────────────────────────────────────────
 
 export const insertListing = async (listing: any) => {
