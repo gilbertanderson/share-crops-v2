@@ -61,11 +61,6 @@ const isAllowedOrigin = (origin: string | undefined | null): string | null => {
   return null;
 };
 
-const DEFAULT_ORIGIN = (() => {
-  const origin = getEnv('DEFAULT_ORIGIN');
-  return origin?.trim() || 'https://share-crops-v2.vercel.app';
-})();
-
 const API_PREFIX = `make-server-${APP_ID}`;
 
 const app = new Hono();
@@ -118,11 +113,6 @@ app.use('/*', async (c, next) => {
 const getServiceRoleClient = () => createClient(
   getEnv('SUPABASE_URL')!,
   getEnv('SUPABASE_SERVICE_ROLE_KEY')!,
-);
-
-const getAnonClient = () => createClient(
-  getEnv('SUPABASE_URL')!,
-  getEnv('SUPABASE_ANON_KEY')!,
 );
 
 // Initialize storage bucket
@@ -264,194 +254,13 @@ app.get(`/${API_PREFIX}/health`, (c) => {
 
 // ===== AUTH ROUTES =====
 
-app.post("/make-server-dd877831/auth/signup", async (c) => {
-  try {
-    // Body-size guard — reject before JSON parsing to prevent memory exhaustion
-    const contentLength = parseInt(c.req.header('content-length') || '0', 10);
-    if (contentLength > 4096) {
-      security.logSecurityEvent('oversized_auth_request', 'medium', {
-        ip: security.getClientIp(c.req),
-        size: contentLength,
-      });
-      return c.json({ error: 'Request too large' }, 413);
-    }
-
-    const { email, password, name } = await c.req.json();
-
-    // Input validation
-    if (!email || !password || !name) {
-      return c.json({ error: "Email, password, and name are required" }, 400);
-    }
-
-    // Validate email format
-    const emailValidation = security.validateInput(email, 'email');
-    if (!emailValidation.valid) {
-      security.logSecurityEvent('invalid_email_format', 'low', { email });
-      return c.json({ error: "Invalid email format" }, 400);
-    }
-
-    // Validate name
-    const nameValidation = security.validateInput(name, 'string', { minLength: 1, maxLength: 100 });
-    if (!nameValidation.valid) {
-      security.logSecurityEvent('invalid_name_format', 'low', { name });
-      return c.json({ error: "Name must be 1-100 characters" }, 400);
-    }
-
-    // Validate password strength (min 8 chars, at least 1 uppercase, 1 number)
-    if (password.length < 8 || !/[A-Z]/.test(password) || !/\d/.test(password)) {
-      return c.json({ error: "Password must be at least 8 characters with uppercase and numbers" }, 400);
-        console.log('Initializing mock data...');
-    }
-
-    // Prevent SQL injection patterns
-    const sqlSafety = security.validateQuerySafety(email + name);
-    if (!sqlSafety.safe) {
-      security.logSecurityEvent('sql_injection_attempt', 'high', {
-        ip: security.getClientIp(c.req),
-        email: email.substring(0, 5),
-      });
-      return c.json({ error: "Invalid input detected" }, 400);
-    }
-
-    const supabase = getServiceRoleClient();
-    const { data, error } = await supabase.auth.admin.createUser({
-      email,
-      password,
-      user_metadata: { name },
-      email_confirm: true
-    });
-
-    if (error) {
-      console.error("Signup error:", error);
-      security.logSecurityEvent('signup_error', 'medium', { error: error.message });
-      return c.json({ error: error.message }, 400);
-    }
-
-    // Sanitize user data before storing. rating/ratingCount are computed by
-    // profiles_view, so they're not columns here.
-    await db.upsertProfile({
-      id: data.user.id,
-      email: security.sanitizeString(email),
-      name: security.sanitizeString(name),
-      bio: '',
-      socialUrl: '',
-      profilePhotoUrl: '',
-      role: email.toLowerCase() === ADMIN_EMAIL ? 'admin' : 'general',
-    });
-
-    security.logSecurityEvent('user_signup', 'low', { userId: data.user.id });
-    return c.json({ success: true, userId: data.user.id });
-  } catch (error) {
-    console.error("Signup error:", error);
-    security.logSecurityEvent('signup_exception', 'critical', { error: String(error) });
-    return c.json({ error: "Signup failed" }, 500);
-  }
-});
-
-app.post("/make-server-dd877831/auth/login", async (c) => {
-  try {
-    // Body-size guard — reject before JSON parsing to prevent memory exhaustion
-    const contentLength = parseInt(c.req.header('content-length') || '0', 10);
-    if (contentLength > 4096) {
-      security.logSecurityEvent('oversized_auth_request', 'medium', {
-        ip: security.getClientIp(c.req),
-        size: contentLength,
-      });
-      return c.json({ error: 'Request too large' }, 413);
-    }
-
-    // Auth-specific rate limit (tighter than global 100/min)
-    const authLimit = security.authRateLimit(c.req);
-    if (!authLimit.allowed) {
-      c.header('Retry-After', Math.ceil((authLimit.resetTime - Date.now()) / 1000).toString());
-      security.logSecurityEvent('auth_rate_limit_exceeded', 'medium', {
-        ip: security.getClientIp(c.req),
-      });
-      return c.json({ error: 'Too many login attempts. Please try again later.' }, 429);
-    }
-
-    const { email, password } = await c.req.json();
-    const ip = security.getClientIp(c.req);
-
-    // Input validation
-    if (!email || !password) {
-      return c.json({ error: "Email and password are required" }, 400);
-    }
-
-    // Validate email format
-    const emailValidation = security.validateInput(email, 'email');
-    if (!emailValidation.valid) {
-      security.logSecurityEvent('invalid_login_email', 'low', { ip });
-      return c.json({ error: "Invalid credentials" }, 401);
-    }
-
-    // Per-email / per-IP lockout check
-    const lockout = security.isLockedOut(email, ip);
-    if (lockout.locked) {
-      c.header('Retry-After', lockout.retryAfter.toString());
-      security.logSecurityEvent('lockout_enforced', 'medium', {
-        ip,
-        email: email.substring(0, 3),
-      });
-      return c.json({ error: 'Account temporarily locked due to too many failed attempts. Please try again later.' }, 429);
-    }
-
-    const supabase = getAnonClient();
-    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
-
-    if (error) {
-      console.error("Login error:", error);
-      security.trackFailedLogin(email, ip);
-      // Artificial delay: uniform response time prevents timing-based enumeration
-      await new Promise((resolve) => setTimeout(resolve, 500));
-      security.logSecurityEvent('login_failed', 'low', {
-        ip,
-        email: email.substring(0, 5),
-      });
-      return c.json({ error: "Invalid credentials" }, 401);
-    }
-
-    security.resetFailedLogin(email);
-    security.logSecurityEvent('user_login', 'low', { userId: data.user.id });
-    return c.json({
-      success: true,
-      accessToken: data.session.access_token,
-      userId: data.user.id
-    });
-  } catch (error) {
-    console.error("Login error:", error);
-    security.logSecurityEvent('login_exception', 'critical', { error: String(error) });
-    return c.json({ error: "Login failed" }, 500);
-  }
-});
-
-app.post("/make-server-dd877831/auth/reset-password", async (c) => {
-  try {
-    const { email } = await c.req.json();
-
-    if (!email) {
-      return c.json({ error: "Email is required" }, 400);
-    }
-
-    const emailValidation = security.validateInput(email, 'email');
-    if (!emailValidation.valid) {
-      // Return success even on invalid email to avoid user enumeration
-      return c.json({ success: true });
-    }
-
-    const supabase = getAnonClient();
-    await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: `${c.req.header('Origin') || DEFAULT_ORIGIN}/reset-password`,
-    });
-
-    // Always return success to avoid leaking whether email exists
-    security.logSecurityEvent('password_reset_requested', 'low', { email: email.substring(0, 3) });
-    return c.json({ success: true });
-  } catch (error) {
-    console.error("Password reset error:", error);
-    return c.json({ success: true }); // Still return success to avoid enumeration
-  }
-});
+// Signup, login, and password reset are handled entirely by Firebase Auth in
+// the browser (see src/lib/firebaseAuth.ts). The legacy Supabase-backed
+// /auth/signup, /auth/login, and /auth/reset-password endpoints were removed:
+// they created a parallel Supabase identity with the service role and issued
+// Supabase access tokens that this API (which verifies Firebase ID tokens)
+// cannot consume — dead but exploitable surface for credential stuffing and
+// user enumeration. The only auth endpoint the app uses is GET /auth/me below.
 
 app.get("/make-server-dd877831/auth/me", async (c) => {
   const user = await getAuthUser(c.req.header('Authorization'));
