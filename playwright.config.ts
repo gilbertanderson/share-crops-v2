@@ -10,6 +10,7 @@ const FIREBASE_TEST_ENV = {
   VITE_FIREBASE_MESSAGING_SENDER_ID: '1234567890',
   VITE_FIREBASE_APP_ID: '1:1234567890:web:abcdef',
   VITE_FIREBASE_AUTH_EMULATOR_HOST: '127.0.0.1:9099',
+  VITE_SUPABASE_ANON_KEY: 'test-supabase-anon-key',
 };
 
 export default defineConfig({

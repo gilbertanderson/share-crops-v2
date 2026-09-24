@@ -1,4 +1,4 @@
-import type { Page, Route } from '@playwright/test';
+import type { Page, Request, Route } from '@playwright/test';
 import { signInAsVerifiedUser, signInWithGoogleViaEmulator } from './firebase-emulator';
 
 // Deterministic fixture data returned by the mocked backend.
@@ -94,6 +94,13 @@ const MOCK_IMAGE_BODY = Buffer.from(
   'base64',
 );
 
+type BackendMockOptions = {
+  primaryFails?: boolean;
+  fallbackFails?: boolean;
+  supabaseEdgeFails?: boolean;
+  onSupabaseEdgeRequest?: (request: Request) => void;
+};
+
 function stableImageUrl(route: Route, key: string): string {
   const url = new URL(route.request().url());
   const prefix = url.pathname.split('/upload')[0] || url.pathname.replace(/\/images\/.*$/, '');
@@ -148,16 +155,21 @@ async function dispatch(route: Route) {
 }
 
 /**
- * Install backend mocks. By default the primary (Supabase) host serves data.
- * With { primaryFails: true } the primary returns 500 so the app must fail
- * over to the Vercel fallback host (which always serves data here).
+ * Install backend mocks. By default every configured API tier serves data.
+ * With { primaryFails: true } the same-origin API returns 500 so the app must
+ * fail over to the Vercel fallback host. With { fallbackFails: true } it must
+ * continue to the Supabase Edge API.
  */
-export async function mockBackend(page: Page, opts: { primaryFails?: boolean } = {}) {
+export async function mockBackend(page: Page, opts: BackendMockOptions = {}) {
   await page.route('**/functions/v1/make-server-dd877831/**', async (route) => {
-    if (opts.primaryFails) return json(route, { error: 'primary down' }, 500);
+    opts.onSupabaseEdgeRequest?.(route.request());
+    if (opts.supabaseEdgeFails) return json(route, { error: 'supabase edge down' }, 500);
     return dispatch(route);
   });
-  await page.route('**/fallback.test/api/make-server-dd877831/**', dispatch);
+  await page.route('**/fallback.test/api/make-server-dd877831/**', async (route) => {
+    if (opts.fallbackFails) return json(route, { error: 'fallback down' }, 502);
+    return dispatch(route);
+  });
   await page.route('**/api/make-server-dd877831/**', async (route) => {
     // Same pattern matches fallback.test — defer to that handler.
     if (route.request().url().includes('fallback.test')) return route.fallback();
@@ -172,7 +184,7 @@ export async function mockBackend(page: Page, opts: { primaryFails?: boolean } =
  */
 export async function setupAuthenticatedSession(
   page: Page,
-  opts: { primaryFails?: boolean } = {},
+  opts: BackendMockOptions = {},
 ): Promise<string> {
   await mockBackend(page, opts);
   return signInAsVerifiedUser(page);
@@ -184,7 +196,7 @@ export async function setupAuthenticatedSession(
  */
 export async function setupGoogleAuthenticatedSession(
   page: Page,
-  opts: { primaryFails?: boolean } = {},
+  opts: BackendMockOptions = {},
 ): Promise<string> {
   await mockBackend(page, opts);
   return signInWithGoogleViaEmulator(page);
