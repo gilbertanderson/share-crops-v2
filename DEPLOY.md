@@ -11,26 +11,39 @@
 Firebase **authDomain** is always `share-crops-app.firebaseapp.com` (not your site URL).
 Add each **site hostname** to Firebase → Authentication → Authorized domains.
 
-The **same Hono backend** (`supabase/functions/_shared/app.ts`) runs on two runtimes:
+API routing is centralized in `src/lib/appDomains.ts` and retried by
+`fetchWithFailover` in `src/lib/api.ts`:
 
-- **Supabase Edge Functions (primary)** — Deno, served at
-  `https://<project>.supabase.co/functions/v1/make-server-dd877831`
-- **Vercel Serverless Functions (fallback)** — Node, served at
-  `https://<app>.vercel.app/api/make-server-dd877831`
+- **Primary Vercel** (`share-crops-v2`) uses same-origin `/api` first, then the
+  marketplace Vercel API, then Supabase Edge.
+- **Marketplace Vercel** uses same-origin `/api` first, then Supabase Edge.
+- **Static fallback hosts** (Netlify and Firebase Hosting) have no `/api`
+  function; they call the primary Vercel API, then the marketplace Vercel API,
+  then Supabase Edge.
 
-The frontend calls the **primary** same-origin `/api` first and automatically fails over to
-`VITE_FALLBACK_API_URL` (the share-crops-marketplace deployment) on a network error or 5xx
-(see `fetchWithFailover` in `src/lib/api.ts`).
-Both backends talk to the **same** Supabase Postgres / KV / Storage, so the
-fallback stays useful even if the Edge Functions runtime is down.
+There are two API runtime implementations with the same route surface:
+
+- **Vercel Serverless Functions (primary and backup)** — Node, bundled from
+  `server/entry.ts` + `server/app.ts` into `/api/make-server-dd877831`.
+- **Supabase Edge Functions (tertiary failover)** — Deno, served at
+  `https://<project>.supabase.co/functions/v1/make-server-dd877831` from
+  `supabase/functions/make-server-dd877831/index.ts` +
+  `supabase/functions/_shared/app.ts`.
+
+Both runtimes talk to the same Supabase Postgres / KV / Storage data, so fallback
+requests stay consistent. Keep the Node and Edge route implementations in sync
+when changing API behavior.
 
 ```
-            ┌──────────── Supabase (primary) ───────────┐
- frontend ──┤  Edge Function: make-server-dd877831       ├── Supabase DB
-   │  └─ on 5xx/network error, fail over ↓               │   (Postgres + KV
-   │        ┌──────────── Vercel (fallback) ─────────────┤    + Storage)
-   └────────┤  /api  →  same Hono app (Node)             ├───┘
-            └────────────────────────────────────────────┘
+            ┌────────── Vercel primary ──────────┐
+ frontend ──┤  same-origin /api (Node Hono)      ├── Supabase DB
+   │        └─ on 401/404/5xx/HTML/network ↓     │   (Postgres + KV
+   │        ┌────────── Vercel backup ───────────┤    + Storage)
+   ├────────┤  marketplace /api (Node Hono)      │
+   │        └─ if still unavailable ↓            │
+   │        ┌────────── Supabase Edge ───────────┤
+   └────────┤  Edge Function (Deno Hono)         ├───┘
+            └────────────────────────────────────┘
 ```
 
 ---
@@ -49,7 +62,7 @@ fallback stays useful even if the Edge Functions runtime is down.
 | `SEED_RATER_EMAIL` | optional (seed-data rater) | no |
 | `CORS_ORIGINS` | `https://share-crops-v2.vercel.app,https://share-crops-marketplace.vercel.app,https://sharecropsmarketplace.netlify.app,http://localhost:5173` | no |
 | `DEFAULT_ORIGIN` | `https://share-crops-v2.vercel.app` (primary) | no |
-| `VITE_FALLBACK_API_URL` | `https://share-crops-marketplace.vercel.app/api/make-server-dd877831` (backup API) | no |
+| `VITE_FALLBACK_API_URL` | `https://share-crops-marketplace.vercel.app/api/make-server-dd877831` (backup Vercel API after same-origin `/api`) | no |
 | `VITE_SUPABASE_ANON_KEY` | Supabase project **anon** key (Dashboard → API) — browser Edge failover | no |
 | `VITE_FIREBASE_AUTH_DOMAIN` | `share-crops-app.firebaseapp.com` — **not** your Vercel URL | no |
 | `ANTHROPIC_API_KEY` | **required for AI listing drafts** — Anthropic API key | **yes** |
@@ -62,17 +75,19 @@ fallback stays useful even if the Edge Functions runtime is down.
 
 ---
 
-## 2. Deploy the Supabase Edge Function (primary)
+## 2. Deploy the Supabase Edge Function (tertiary failover)
 
 > Your original `shareCropsApp` already has this deployed and live. These steps
-> let you (re)deploy the identical app from this repo if you want one source.
+> let you (re)deploy the tertiary failover API copy from this repo. Vercel is the
+> primary API runtime for this app.
 
 ```bash
 cd share-crops-v2
 supabase login                       # one-time
 supabase link --project-ref xwjvtpzpufhuybylnwzx
 
-# Set the function secrets (skip SKIP_INIT here — primary should seed):
+# Set the function secrets (skip SKIP_INIT here unless you intentionally want
+# to prevent Supabase Edge cold-start seeding):
 supabase secrets set \
   SUPABASE_SERVICE_ROLE_KEY=... \
   ADMIN_EMAIL=... \
@@ -91,10 +106,11 @@ automatically. The `deno.json` import map resolves `hono` / `@supabase/supabase-
 
 ---
 
-## 3. Deploy to Vercel (frontend SPA + fallback backend)
+## 3. Deploy to Vercel (frontend SPA + primary/backup backend)
 
-Vercel hosts **both** the built SPA and the `/api` fallback function from this
-one repo.
+Vercel hosts **both** the built SPA and the primary `/api` function from this
+one repo. The `share-crops-marketplace` Vercel project runs the same build as a
+backup API/SPA deployment.
 
 ```bash
 npm i -g vercel
@@ -130,7 +146,7 @@ vercel env add VITE_FIREBASE_APP_ID
 vercel env add VITE_FIREBASE_MEASUREMENT_ID
 vercel env add VITE_FIREBASE_VAPID_KEY   # Firebase Console → Cloud Messaging → Web Push certificates
 
-# Frontend build-time — point the app at its own /api as the fallback:
+# Frontend build-time — backup API after same-origin /api:
 vercel env add VITE_FALLBACK_API_URL  # https://share-crops-marketplace.vercel.app/api/make-server-dd877831 (backup API)
 vercel env add VITE_FIREBASE_AUTH_DOMAIN  # share-crops-app.firebaseapp.com — NOT the Vercel URL
 ```
@@ -173,10 +189,10 @@ second route serves the SPA for all non-`/api` paths.
 
 ---
 
-## 4. Verify the failover
+## 4. Verify the API and failover order
 
 ```bash
-# Health check both backends:
+# Health check every API runtime:
 curl https://xwjvtpzpufhuybylnwzx.supabase.co/functions/v1/make-server-dd877831/health
 curl https://share-crops-v2.vercel.app/api/make-server-dd877831/health
 curl https://share-crops-marketplace.vercel.app/api/make-server-dd877831/health
@@ -187,7 +203,11 @@ check the build log for `assembled .vercel/output` and confirm the deployment
 includes a Serverless Function (not just static files).
 
 The e2e suite (`npm run test:e2e`) includes `tests/failover.spec.ts`, which
-forces the primary to 5xx and asserts the app still loads via the fallback.
+forces the primary to 5xx and asserts the app still loads via the next API base.
+
+If a static host (Netlify or Firebase Hosting) shows API errors, remember it has
+no local `/api`; inspect the remote Vercel health checks above and confirm
+`VITE_FALLBACK_API_URL` points at the marketplace Vercel API.
 
 ---
 
@@ -344,6 +364,58 @@ npm run deploy:firebase
 ```
 
 Or: `npx firebase-tools login` then `npm run configure:production -- --firebase-hosting`.
+
+---
+
+## 8. PWA service worker and push notifications
+
+`/sw.js` is generated at build/dev time from `scripts/templates/sw-shell.js` by
+`scripts/generate-sw.mjs`; do not edit `public/sw.js` directly. The generator
+injects the same `VITE_FIREBASE_*` web config used by the browser app so
+Firebase Cloud Messaging can run inside the app-shell service worker.
+
+### What the worker does
+
+- Handles FCM background messages with `firebase-messaging-compat`.
+- Precaches the app shell (`/`, `/index.html`, `/offline.html`, manifest, icons).
+- Serves SPA navigations network-first, then cached `index.html`/`offline.html`
+  when offline.
+- Serves static assets cache-first after a successful fetch.
+- Never intercepts cross-origin requests, `/api`, or Supabase Edge
+  `/functions/v1` calls.
+
+`public/firebase-messaging-sw.js` is still generated for old browser installs
+that activated the former FCM-only worker. New installs use `/sw.js` for both
+app-shell caching and background push, because a separate FCM worker cannot own
+the same root scope.
+
+### Required env vars
+
+`scripts/generate-sw.mjs` reads, in order:
+
+1. `VITE_FIREBASE_*` values from the build environment.
+2. `.env.production.local`, then `.env.local`.
+3. Local placeholder values for dev/test only.
+
+Production builds (`CI=true`, `NETLIFY=true`, `VERCEL=1`, or
+`NODE_ENV=production`) fail if the Firebase web config is missing. For push
+notifications, also set `VITE_FIREBASE_VAPID_KEY`; without it, Profile -> Enable
+notifications returns a "not configured" error from `src/lib/firebaseMessaging.ts`.
+
+### Troubleshooting
+
+- Blank login page: confirm `VITE_FIREBASE_API_KEY` and the other web config
+  values are present and that `VITE_FIREBASE_AUTH_DOMAIN` is
+  `<project>.firebaseapp.com`, not a hosting URL.
+- Push enable fails: confirm the VAPID key is deployed and the browser supports
+  FCM/service workers; then refresh so `ensurePushServiceWorker()` can update
+  stale workers.
+- New release does not appear: `/sw.js` is served with `Cache-Control: no-cache`
+  in `scripts/build-vercel-output.mjs`; verify the deployed output includes that
+  route and use the in-app "new version" prompt to activate a waiting worker.
+- API calls fail offline: expected. The worker intentionally avoids `/api` and
+  Supabase Edge requests; cached browsing is limited to the app shell and static
+  assets.
 
 ---
 
