@@ -28,6 +28,13 @@ export async function ensureVerifiedEmulatorUser(email: string, password: string
   }
 }
 
+/** Mark a just-created emulator user as verified, mirroring a clicked verification link. */
+export async function markEmulatorUserEmailVerified(email: string): Promise<void> {
+  const auth = authAdmin();
+  const user = await auth.getUserByEmail(email);
+  await auth.updateUser(user.uid, { emailVerified: true });
+}
+
 /** Unique throwaway email for parallel-safe emulator users. */
 export function testEmail(label: string): string {
   return `${label}+${Date.now()}-${Math.random().toString(36).slice(2)}@example.com`;
