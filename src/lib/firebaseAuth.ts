@@ -149,7 +149,11 @@ export function sendVerificationEmail(): Promise<void> {
 export async function reloadCurrentUser(): Promise<boolean> {
   if (!auth.currentUser) return false;
   await reload(auth.currentUser);
-  return auth.currentUser.emailVerified;
+  if (!auth.currentUser.emailVerified) return false;
+  // The backend authorizes against the ID token claim, which can lag behind
+  // User.emailVerified until Firebase is forced to mint a fresh token.
+  await auth.currentUser.getIdToken(true);
+  return true;
 }
 
 /** Send a password-reset email. */
