@@ -7,6 +7,8 @@ each other, and rate completed trades.
 This is a rebuild of the original `shareCropsApp` at https://github.com/gilbertanderson/share-crops-app.
 The app uses Firebase Auth in the browser and one Hono/Node API backend for
 marketplace behavior. Supabase is used by the backend for Postgres and Storage.
+Vercel is the primary API runtime; a Supabase Edge Function copy remains as a
+tertiary failover for deployed clients.
 
 ## Highlights
 
@@ -26,7 +28,7 @@ marketplace behavior. Supabase is used by the backend for Postgres and Storage.
 |-------|------|
 | Frontend | React 18, React Router 7, TanStack Query, Vite 6, TypeScript |
 | Backend | [Hono](https://hono.dev) on Node |
-| Runtime | Vercel Serverless Functions now; portable Node host/container later |
+| Runtime | Vercel Serverless Functions primary; Supabase Edge Function tertiary failover; portable Node host/container later |
 | Data | Supabase Postgres + Storage |
 | Auth | Firebase Auth + Firebase Admin token verification |
 | E2E tests | Playwright |
@@ -46,6 +48,9 @@ server/
   db.ts           Supabase Postgres data-access layer
   entry.ts        Vercel Node entry
   firebaseAdmin.ts Firebase ID-token verification
+supabase/functions/
+  make-server-dd877831/index.ts  Supabase Edge failover entry
+  _shared/app.ts                 Deno Hono route copy for Edge failover
 supabase/migrations/
                   Canonical database schema history
 scripts/build-api.mjs     esbuild bundler: server/entry.ts -> api/index.js
@@ -101,7 +106,7 @@ and friends.
 | `npm run test:e2e` | Run the Playwright e2e suite |
 | `npm run test:e2e:headed` | Run e2e tests in a headed browser |
 
-## Architecture: single Node backend
+## Architecture: primary Node backend with Edge failover
 
 The browser sends Firebase ID tokens to the Node API. The API verifies them with
 Firebase Admin and owns all marketplace reads/writes against Supabase.
@@ -116,8 +121,9 @@ PWA frontend
               └─ Supabase Storage
 ```
 
-Supabase Edge Functions are no longer an application runtime for this repo.
-Supabase remains the database/storage provider.
+Supabase Edge Functions are not the primary runtime, but the repo keeps a Deno
+copy of the API as tertiary failover after the primary and marketplace Vercel
+APIs. Supabase remains the database/storage provider.
 
 ## Deployment
 
