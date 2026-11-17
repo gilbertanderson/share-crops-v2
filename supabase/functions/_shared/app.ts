@@ -961,11 +961,8 @@ app.get("/make-server-dd877831/listings/:id", async (c) => {
     }
 
     if (isListingExpired(listing)) {
-      try {
-        await deleteListingRecords(listing);
-      } catch (cleanupError) {
-        console.error(`[GET /listings/:id] Expired listing cleanup failed:`, cleanupError);
-      }
+      // Reads must not hard-delete listings: offers cascade on delete and can
+      // still be needed for in-flight exchanges, messages, and ratings.
       return c.json({ error: "Listing not found" }, 404);
     }
 
