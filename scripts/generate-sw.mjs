@@ -63,11 +63,11 @@ function resolveFirebaseEnv() {
     return { ...DEV_DEFAULTS };
   }
 
-  const fileEnv = {
-    ...loadDotEnv(join(ROOT, '.env.production.local')),
-    ...loadDotEnv(join(ROOT, '.env.local')),
-  };
-  const merged = { ...DEV_DEFAULTS, ...fileEnv };
+  const productionBuild = isProductionBuild();
+  const fileEnv = productionBuild
+    ? loadDotEnv(join(ROOT, '.env.production.local'))
+    : loadDotEnv(join(ROOT, '.env.local'));
+  const merged = productionBuild ? { ...fileEnv } : { ...DEV_DEFAULTS, ...fileEnv };
   for (const key of FIREBASE_KEYS) {
     if (process.env[key]?.trim()) merged[key] = process.env[key].trim();
   }
