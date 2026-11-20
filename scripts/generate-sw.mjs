@@ -63,13 +63,20 @@ function resolveFirebaseEnv() {
     return { ...DEV_DEFAULTS };
   }
 
+  const isProduction = isProductionBuild();
   const fileEnv = {
     ...loadDotEnv(join(ROOT, '.env.production.local')),
-    ...loadDotEnv(join(ROOT, '.env.local')),
+    ...(isProduction ? {} : loadDotEnv(join(ROOT, '.env.local'))),
   };
-  const merged = { ...DEV_DEFAULTS, ...fileEnv };
+  const merged = isProduction ? { ...fileEnv } : { ...DEV_DEFAULTS, ...fileEnv };
   for (const key of FIREBASE_KEYS) {
-    if (process.env[key]?.trim()) merged[key] = process.env[key].trim();
+    const direct = process.env[key]?.trim();
+    const encoded = process.env[`${key}_B64`]?.trim();
+    if (direct) {
+      merged[key] = direct;
+    } else if (encoded) {
+      merged[key] = Buffer.from(encoded, 'base64').toString('utf8').trim();
+    }
   }
   return merged;
 }
