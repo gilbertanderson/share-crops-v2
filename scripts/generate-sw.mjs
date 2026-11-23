@@ -55,6 +55,14 @@ function loadDotEnv(path) {
   return env;
 }
 
+function envValue(key) {
+  const direct = process.env[key]?.trim();
+  if (direct) return direct;
+  const b64 = process.env[`${key}_B64`]?.trim();
+  if (!b64) return '';
+  return Buffer.from(b64, 'base64').toString('utf8').trim();
+}
+
 function resolveFirebaseEnv() {
   const useNetlifyPlaceholders =
     process.env.NETLIFY === 'true' && process.env.NETLIFY_INJECT_FIREBASE !== 'true';
@@ -63,13 +71,17 @@ function resolveFirebaseEnv() {
     return { ...DEV_DEFAULTS };
   }
 
-  const fileEnv = {
-    ...loadDotEnv(join(ROOT, '.env.production.local')),
-    ...loadDotEnv(join(ROOT, '.env.local')),
-  };
-  const merged = { ...DEV_DEFAULTS, ...fileEnv };
+  const production = isProductionBuild();
+  const fileEnv = production
+    ? loadDotEnv(join(ROOT, '.env.production.local'))
+    : {
+        ...loadDotEnv(join(ROOT, '.env.production.local')),
+        ...loadDotEnv(join(ROOT, '.env.local')),
+      };
+  const merged = production ? { ...fileEnv } : { ...DEV_DEFAULTS, ...fileEnv };
   for (const key of FIREBASE_KEYS) {
-    if (process.env[key]?.trim()) merged[key] = process.env[key].trim();
+    const value = envValue(key);
+    if (value) merged[key] = value;
   }
   return merged;
 }
